@@ -22,7 +22,7 @@ export default function Header() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-white.png" alt="جولدن بيت" />
         </Link>
-        <span className="site-name" dir="ltr">Golden Beit <b>New Sohag</b></span>
+        <span className="site-name" dir="ltr"><span>Golden Beit</span> <b>New Sohag</b></span>
         <nav>
           <Link href="/">الأراضي المعروضة</Link>
           {profile?.role === "admin" && <Link href="/admin">لوحة التحكم</Link>}

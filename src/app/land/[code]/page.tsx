@@ -63,7 +63,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
               </>
             )}
           </div>
-          <aside className="side">
+          <aside className="side" id="request">
             <div className="price"><small>المطلوب</small><b className="num">{fmtFull(x.ask)}</b></div>
             <div className="pay">
               <div><span>الجدية</span><b className="num">{fmtFull(JEDIA[x.tier])}</b></div>
@@ -75,6 +75,11 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
             <p className="note">رقم البائع مش بيظهر. التواصل والمعاينة بيتمّوا عن طريق جولدن بيت.</p>
           </aside>
         </div>
+      </div>
+      <div className="mbar land">
+        <div className="mbar-price"><small>المطلوب</small><b className="num">{fmtShort(x.ask)}</b></div>
+        <a className="btn green" href="#request">اطلب القطعة</a>
+        <a className="btn wa icon" href={waLink(waText)} target="_blank" rel="noopener" aria-label="اسأل على واتساب"><WhatsAppIcon /></a>
       </div>
     </main>
   );
