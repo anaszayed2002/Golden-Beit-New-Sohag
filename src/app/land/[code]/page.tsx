@@ -71,9 +71,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
               <div><span>كود الأرض</span><b className="num">{x.code}</b></div>
             </div>
             <RequestPlot listingId={x.id} code={x.code} waText={waText} />
-            <a className="btn wa block" href={waLink(waText)} target="_blank" rel="noopener"><WhatsAppIcon />اسأل على واتساب</a>
-            <p className="note">رقم البائع مش بيظهر. التواصل والمعاينة بيتمّوا عن طريق جولدن بيت.</p>
-          </aside>
+            <a className="btn wa block" href={waLink(waText)} target="_blank" rel="noopener"><WhatsAppIcon />اسأل على واتساب</a>          </aside>
         </div>
       </div>
       <div className="mbar land">

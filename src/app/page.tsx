@@ -16,7 +16,7 @@ export default async function Home() {
       <section className="top">
         <div className="wrap">
           <div className="hero">
-            <h1>قول لنا بتدوّر على إيه، وإحنا نجيبهولك</h1>
+            <h1>أميز أراضي المجاورات بسوهاج الجديدة</h1>
             <p>اختار الفئة والمساحة واكتب ميزانيتك.</p>
           </div>
         </div>
