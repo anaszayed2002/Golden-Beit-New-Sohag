@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Plot from "@/components/Plot";
@@ -8,14 +8,12 @@ import CloseButton from "@/components/CloseButton";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useAccount } from "@/lib/useAccount";
 import { AREAS, FEATURES, PHONE_RE, normalizeDigits, parseMoney, tierName, type Tier } from "@/lib/site";
-import type { Neighborhood } from "@/lib/types";
 
 const money = (n: number | null) => (n ? n.toLocaleString("en") : "");
 
 export default function SellPage() {
   const router = useRouter();
   const { loading, user } = useAccount();
-  const [hoods, setHoods] = useState<Neighborhood[]>([]);
   const [tier, setTier] = useState<Tier>("mt");
   const [area, setArea] = useState(209);
   const [customArea, setCustomArea] = useState("");
@@ -34,12 +32,6 @@ export default function SellPage() {
     if (!loading && !user) router.replace("/account?next=/sell");
   }, [loading, user, router]);
 
-  useEffect(() => {
-    supabaseBrowser().from("neighborhoods").select("n,tier,label").eq("active", true).order("sort")
-      .then(({ data }) => setHoods((data ?? []) as Neighborhood[]));
-  }, []);
-
-  const tierHoods = useMemo(() => hoods.filter((h) => h.tier === tier), [hoods, tier]);
   const custom = Number(customArea) || 0;
   const effectiveArea = custom >= 50 && custom <= 5000 ? custom : area;
 
@@ -47,14 +39,13 @@ export default function SellPage() {
     setTier(t);
     setArea(AREAS[t][0]);
     setCustomArea("");
-    setHood("");
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     const p = normalizeDigits(phone).replace(/\s/g, "");
-    if (!hood) return setError("اختار المجاورة");
+    if (!(Number(hood) >= 1 && Number(hood) <= 999)) return setError("اكتب رقم المجاورة");
     if (customArea && !(custom >= 50 && custom <= 5000)) return setError("المساحة لازم تكون بين 50 و5000 متر");
     if (!ask) return setError("اكتب المطلوب");
     if (!PHONE_RE.test(p)) return setError("رقم التليفون لازم يكون 11 رقم ويبدأ بـ 01");
@@ -131,10 +122,8 @@ export default function SellPage() {
           </div>
           <div className="two">
             <label className="field" htmlFor="sHood">المجاورة
-              <select id="sHood" value={hood} onChange={(e) => setHood(e.target.value)}>
-                <option value="">اختار</option>
-                {tierHoods.map((h) => <option key={h.n} value={h.n}>مجاورة {h.n}{h.label ? ` (${h.label})` : ""}</option>)}
-              </select>
+              <input id="sHood" className="num" inputMode="numeric" placeholder="رقم المجاورة" value={hood} autoComplete="off"
+                onChange={(e) => setHood(normalizeDigits(e.target.value).replace(/[^\d]/g, "").slice(0, 3))} />
             </label>
             <label className="field" htmlFor="sPlot">رقم القطعة
               <input id="sPlot" className="num" value={plotNo} onChange={(e) => setPlotNo(e.target.value.slice(0, 20))} autoComplete="off" />
