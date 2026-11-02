@@ -5,7 +5,7 @@ import Link from "next/link";
 import Sketch from "@/components/Sketch";
 import CloseButton from "@/components/CloseButton";
 import { supabaseBrowser } from "@/lib/supabase";
-import { OPT, PHONE_RE, ZONES, cleanPhone, digitsOnly, parseMoney, tierName, zoneOf, type Tier, type ZoneId } from "@/lib/site";
+import { OPT, PHONE_RE, ZONES, cleanPhone, decimalOnly, digitsOnly, parseMoney, tierName, zoneOf, type Tier, type ZoneId } from "@/lib/site";
 import { landRows } from "@/lib/landText";
 
 const STEPS = ["الموقع", "المواصفات", "الحالة والملكية", "السعر وبياناتك", "المراجعة"];
@@ -43,6 +43,8 @@ export default function SellPage() {
   function check(s: number) {
     if (s === 0 && zone.hoods.length && !f.hood.trim()) return "اكتب المجاورة";
     if (s === 1 && !areaOk) return "اكتب المساحة (من 50 لـ 5000 متر)";
+    if (s === 1 && f.front_m && !(Number(f.front_m) >= 3 && Number(f.front_m) <= 100)) return "عرض الواجهة لازم يكون بين 3 و100 متر";
+    if (s === 2 && f.legal === "مستلمة" && f.grace_months && Number(f.grace_months) > 120) return "مهلة البناء لازم تكون 120 شهر أو أقل";
     if (s === 2 && f.ownership === "حالة تفصيلية" && !f.ownership_note.trim()) return "اكتب تفاصيل الحالة";
     if (s === 3) {
       if (!f.price) return "اكتب المطلوب";
@@ -62,7 +64,11 @@ export default function SellPage() {
       p: { ...f, hood: zone.hoods.length ? f.hood : "", grace_months: f.legal === "مستلمة" ? f.grace_months : "" },
     });
     setBusy(false);
-    if (error) return setError(/too many/.test(error.message) ? "بعت إعلانات كتير النهارده من الرقم ده، كلّمنا واتساب" : "الإعلان ما اتبعتش، راجع البيانات وجرّب تاني");
+    if (error) {
+      if (/too many/.test(error.message)) return setError("بعت إعلانات كتير النهارده من الرقم ده، كلّمنا واتساب");
+      if (error.code === "23514") return setError("فيه رقم مش منطقي (المساحة أو عرض الواجهة أو مهلة البناء)، راجعه من «تعديل»");
+      return setError("الإعلان ما اتبعتش، جرّب تاني أو كلّمنا واتساب");
+    }
     setCode(String(data));
     window.scrollTo({ top: 0 });
   }
@@ -76,10 +82,16 @@ export default function SellPage() {
       </div>
     </div>
   );
-  const num = (k: "block" | "plot_no" | "area" | "front_m" | "grace_months", label: string, ph = "", max = 4) => (
+  const num = (k: "block" | "plot_no" | "grace_months", label: string, ph = "", max = 4) => (
     <label className="field" htmlFor={`f_${k}`}>{label}
       <input id={`f_${k}`} className="num" inputMode="numeric" placeholder={ph} value={f[k]} autoComplete="off"
         onChange={(e) => set(k, digitsOnly(e.target.value).slice(0, max))} />
+    </label>
+  );
+  const dec = (k: "area" | "front_m", label: string, ph = "", maxInt = 4) => (
+    <label className="field" htmlFor={`f_${k}`}>{label}
+      <input id={`f_${k}`} className="num" inputMode="decimal" placeholder={ph} value={f[k]} autoComplete="off"
+        onChange={(e) => set(k, decimalOnly(e.target.value, maxInt))} />
     </label>
   );
   const money = (k: "price" | "paid", label: string) => (
@@ -146,11 +158,11 @@ export default function SellPage() {
 
           {step === 1 && (
             <>
-              {num("area", "المساحة (م²)", f.tier === "mm" ? "مثلًا 500" : "مثلًا 276")}
+              {dec("area", "المساحة (م²)", f.tier === "mm" ? "مثلًا 500" : "مثلًا 276.5")}
               {chips("pos", "موقع القطعة")}
               {chips("dir", "الاتجاه")}
               {chips("view", "الإطلالة")}
-              {num("front_m", "عرض الواجهة (م)", "", 3)}
+              {dec("front_m", "عرض الواجهة (م)", "مثلًا 12.5", 3)}
             </>
           )}
 

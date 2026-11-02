@@ -19,8 +19,8 @@ export type Zone = { id: ZoneId; tier: Tier; name: string; short: string; hoods:
 export const ZONES: Zone[] = [
   { id: "z455", tier: "mm", name: "منطقة الـ455 فدان", short: "455 فدان", hoods: range(3, 10) },
   { id: "z214", tier: "mm", name: "منطقة الـ214 فدان", short: "214 فدان", hoods: ["الشمالية", "الجنوبية"] },
-  { id: "ztm", tier: "mm", name: "التوسعات الجنوبية (مميز)", short: "التوسعات / المجاورات", hoods: [...range(11, 17), ...range(37, 40)] },
-  { id: "z735", tier: "mt", name: "التوسعات الجنوبية 735 فدان", short: "التوسعات / 735 فدان", hoods: range(18, 49) },
+  { id: "ztm", tier: "mm", name: "التوسعات الجنوبية (مميز)", short: "التوسعات / المجاورات / 735 فدان", hoods: [...range(11, 17), ...range(37, 40)] },
+  { id: "z735", tier: "mt", name: "التوسعات الجنوبية 735 فدان", short: "التوسعات / المجاورات / 735 فدان", hoods: range(18, 49) },
   { id: "zahy", tier: "mt", name: "الأحياء (الإسكان الاجتماعي)", short: "الأحياء", hoods: [] },
 ];
 export const zoneOf = (id: string) => ZONES.find((z) => z.id === id) ?? ZONES[0];
@@ -54,6 +54,13 @@ export function normalizeDigits(s: string) {
   return s.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 }
 export const digitsOnly = (s: string) => normalizeDigits(s).replace(/[^\d]/g, "");
+// Numbers that may have a fraction (276.5): keeps one decimal point, up to 2 places. "٫" and "," count as the point.
+export function decimalOnly(s: string, maxInt = 4) {
+  const t = normalizeDigits(s).replace(/[٫,]/g, ".").replace(/[^\d.]/g, "");
+  const [int = "", ...rest] = t.split(".");
+  const frac = rest.join("").slice(0, 2);
+  return int.slice(0, maxInt) + (t.includes(".") ? "." + frac : "");
+}
 export function parseMoney(s: string) {
   const n = Number(digitsOnly(s));
   return n || null;
