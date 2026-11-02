@@ -8,7 +8,7 @@ import { WhatsAppIcon } from "./Icons";
 // Phone-only bottom bar. Land pages render their own bar with the price.
 export default function MobileBar() {
   const path = usePathname();
-  if (path.startsWith("/land/") || path.startsWith("/sell") || path.startsWith("/account") || path.startsWith("/admin")) return null;
+  if (path.startsWith("/land/") || path.startsWith("/sell") || path.startsWith("/admin")) return null;
   return (
     <div className="mbar">
       <Link className="btn gold" href="/sell">اعرض أرضك</Link>

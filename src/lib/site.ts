@@ -6,16 +6,40 @@ export const SITE = {
   facebook: process.env.NEXT_PUBLIC_FACEBOOK_URL || "",
 };
 
-export type Tier = "mt" | "mm";
-export const TIERS: Tier[] = ["mt", "mm"];
-export const AREAS: Record<Tier, number[]> = { mt: [209, 276], mm: [500, 600] };
-export const JEDIA: Record<Tier, number> = { mt: 25000, mm: 100000 };
-export const tierName = (t: Tier) => (t === "mm" ? "متميز" : "متوسط");
+export type Tier = "mm" | "mt";
+export const tierName = (t: Tier) => (t === "mm" ? "مميز" : "متوسط");
 
-export const FEATURES = ["ناصية", "على حديقة", "بحري", "على شارع 20 م", "قريبة من المدرسة", "واجهة عريضة"];
+const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => String(a + i));
+
+export type ZoneId = "z455" | "z214" | "ztm" | "z735" | "zahy";
+export type Zone = { id: ZoneId; tier: Tier; name: string; short: string; hoods: string[] };
+
+// Areas and their neighborhoods. Ranges include both ends.
+export const ZONES: Zone[] = [
+  { id: "z455", tier: "mm", name: "منطقة الـ455 فدان", short: "455 فدان", hoods: range(3, 10) },
+  { id: "z214", tier: "mm", name: "منطقة الـ214 فدان", short: "214 فدان", hoods: ["الشمالية", "الجنوبية"] },
+  { id: "ztm", tier: "mm", name: "التوسعات الجنوبية (مميز)", short: "التوسعات (مميز)", hoods: [...range(11, 17), ...range(37, 40)] },
+  { id: "z735", tier: "mt", name: "التوسعات الجنوبية 735 فدان", short: "735 فدان", hoods: range(18, 49) },
+  { id: "zahy", tier: "mt", name: "الأحياء (الإسكان الاجتماعي)", short: "الأحياء", hoods: [] },
+];
+export const zoneOf = (id: string) => ZONES.find((z) => z.id === id) ?? ZONES[0];
+export const hoodLabel = (h: string | null | undefined) => (!h ? "" : /^\d+$/.test(h) ? "مجاورة " + h : h);
+export const placeLabel = (zone: string, hood: string | null) => [hoodLabel(hood), zoneOf(zone).short].filter(Boolean).join(" · ");
+
+// Option lists double as ranking order for the compare table (worst → best where it applies).
+export const OPT = {
+  pos: ["واجهة واحدة", "ناصية", "دبل فيس", "تربل فيس"],
+  dir: ["بحري", "قبلي", "شرقي", "غربي"],
+  view: ["حديقة", "خدمات", "شارع رئيسي", "داخلي"],
+  stage: ["أرض فضاء", "ذات رخصة", "قيد البناء", "مبنى", "مبنى متشطب"],
+  legal: ["لم تستلم", "مستلمة"],
+  ownership: ["مالك أصيل", "توكيل واحد", "توكيلين", "أكثر من توكيلين", "حالة تفصيلية"],
+  utilities: ["غير مرفقة", "قيد الترفيق (أولية)", "قيد الانتهاء من الترفيق", "مرفقة"],
+} as const;
+export const FRONT_MIN = [10, 15, 20];
 
 export const PHONE_RE = /^01[0125][0-9]{8}$/;
-// Accounts are phone + password; Supabase Auth needs an email, so each phone maps to a fixed synthetic one.
+// Admin accounts only. Supabase Auth needs an email, so each phone maps to a fixed synthetic one.
 export const phoneEmail = (phone: string) => `${phone}@users.goldenbeit.com`;
 
 export function fmtShort(v: number) {
@@ -24,15 +48,16 @@ export function fmtShort(v: number) {
 }
 export const fmtFull = (v: number) => Math.round(v).toLocaleString("en") + " ج";
 
-export function parseMoney(s: string) {
-  const n = Number(String(s).replace(/[^\d]/g, ""));
-  return n || null;
-}
-
 // Arabic-Indic digits typed on phones become Latin digits
 export function normalizeDigits(s: string) {
   return s.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
 }
+export const digitsOnly = (s: string) => normalizeDigits(s).replace(/[^\d]/g, "");
+export function parseMoney(s: string) {
+  const n = Number(digitsOnly(s));
+  return n || null;
+}
+export const cleanPhone = (s: string) => digitsOnly(s).slice(0, 11);
 
 export const waLink = (text: string, to = SITE.whatsapp) => `https://wa.me/${to}?text=${encodeURIComponent(text)}`;
 export const waTo = (egyptPhone: string, text: string) => waLink(text, "2" + egyptPhone);

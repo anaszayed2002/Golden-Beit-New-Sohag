@@ -1,4 +1,4 @@
-// Creates a confirmed account from name + Egyptian mobile + password.
+// Creates a confirmed admin account from name + Egyptian mobile + password.
 // Accounts use a synthetic email so no SMS or email provider is needed.
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
@@ -32,6 +32,10 @@ Deno.serve(async (req) => {
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false },
   });
+
+  // Customers don't have accounts; only numbers listed in admin_phones can create one.
+  const { data: allowed } = await admin.from("admin_phones").select("phone").eq("phone", phone).maybeSingle();
+  if (!allowed) return json({ error: "الحسابات للإدارة بس" }, 403);
 
   const { data: existing } = await admin.from("profiles").select("id").eq("phone", phone).maybeSingle();
   if (existing) return json({ error: "الرقم ده عليه حساب بالفعل، ادخل من «عندي حساب»" }, 409);

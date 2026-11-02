@@ -1,31 +1,40 @@
-import type { Tier } from "./site";
+import type { Tier, ZoneId } from "./site";
 
-export type ListingStatus = "pending" | "approved" | "rejected" | "sold";
+export type LandStatus = "pending" | "approved" | "rejected" | "sold";
 
-export const STATUS_NAME: Record<ListingStatus, string> = {
+export const STATUS_NAME: Record<LandStatus, string> = {
   pending: "في المراجعة",
   approved: "معروضة",
   rejected: "مرفوضة",
   sold: "اتباعت",
 };
 
-export type Listing = {
+export type Land = {
   id: string;
   code: string;
   tier: Tier;
-  neighborhood: number;
+  zone: ZoneId;
+  hood: string | null;
+  block: string | null;
   area: number;
-  ask: number;
+  pos: string | null;
+  dir: string | null;
+  view: string | null;
+  front_m: number | null;
+  stage: string | null;
+  legal: string | null;
+  grace_months: number | null;
+  ownership: string | null;
+  utilities: string | null;
+  price: number;
   paid: number | null;
-  features: string[];
   description: string | null;
-  status: ListingStatus;
+  status: LandStatus;
   created_at: string;
   approved_at: string | null;
 };
 
-export type Neighborhood = { n: number; tier: Tier; label: string | null };
+export const LAND_COLUMNS =
+  "id,code,tier,zone,hood,block,area,pos,dir,view,front_m,stage,legal,grace_months,ownership,utilities,price,paid,description,status,created_at,approved_at";
 
 export type Profile = { id: string; full_name: string; phone: string; role: "user" | "admin"; created_at?: string };
-
-export const LISTING_COLUMNS = "id,code,tier,neighborhood,area,ask,paid,features,description,status,created_at,approved_at";

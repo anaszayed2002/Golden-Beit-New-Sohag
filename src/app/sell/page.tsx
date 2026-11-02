@@ -1,85 +1,95 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import Plot from "@/components/Plot";
+import Sketch from "@/components/Sketch";
 import CloseButton from "@/components/CloseButton";
 import { supabaseBrowser } from "@/lib/supabase";
-import { useAccount } from "@/lib/useAccount";
-import { AREAS, FEATURES, PHONE_RE, normalizeDigits, parseMoney, tierName, type Tier } from "@/lib/site";
+import { OPT, PHONE_RE, ZONES, cleanPhone, digitsOnly, parseMoney, tierName, zoneOf, type Tier, type ZoneId } from "@/lib/site";
 
-const money = (n: number | null) => (n ? n.toLocaleString("en") : "");
+const STEPS = ["الموقع", "المواصفات", "الحالة والملكية", "السعر وبياناتك"];
+
+type Form = {
+  tier: Tier; zone: ZoneId; hood: string; block: string; plot_no: string;
+  area: string; pos: string; dir: string; view: string; front_m: string;
+  stage: string; legal: string; grace_months: string; ownership: string; utilities: string;
+  price: number | null; paid: number | null; description: string; seller_name: string; seller_phone: string;
+};
+const initial: Form = {
+  tier: "mm", zone: "z455", hood: "", block: "", plot_no: "", area: "", pos: "", dir: "", view: "", front_m: "",
+  stage: "", legal: "", grace_months: "", ownership: "", utilities: "", price: null, paid: null, description: "", seller_name: "", seller_phone: "",
+};
 
 export default function SellPage() {
-  const router = useRouter();
-  const { loading, user } = useAccount();
-  const [tier, setTier] = useState<Tier>("mt");
-  const [area, setArea] = useState(209);
-  const [customArea, setCustomArea] = useState("");
-  const [hood, setHood] = useState("");
-  const [plotNo, setPlotNo] = useState("");
-  const [ask, setAsk] = useState<number | null>(null);
-  const [paid, setPaid] = useState<number | null>(null);
-  const [phone, setPhone] = useState("");
-  const [features, setFeatures] = useState<string[]>([]);
-  const [desc, setDesc] = useState("");
+  const [f, setF] = useState<Form>(initial);
+  const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [doneCode, setDoneCode] = useState("");
+  const [code, setCode] = useState("");
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((cur) => ({ ...cur, [k]: v }));
+  const zone = zoneOf(f.zone);
+  const area = Number(f.area);
+  const areaOk = area >= 50 && area <= 5000;
 
-  useEffect(() => {
-    if (!loading && !user) router.replace("/account?next=/sell");
-  }, [loading, user, router]);
-
-  const custom = Number(customArea) || 0;
-  const effectiveArea = custom >= 50 && custom <= 5000 ? custom : area;
-
-  function pickTier(t: Tier) {
-    setTier(t);
-    setArea(AREAS[t][0]);
-    setCustomArea("");
+  function check(s: number) {
+    if (s === 0 && zone.hoods.length && !f.hood.trim()) return "اكتب المجاورة";
+    if (s === 1 && !areaOk) return "اكتب المساحة (من 50 لـ 5000 متر)";
+    if (s === 3) {
+      if (!f.price) return "اكتب المطلوب";
+      if (f.seller_name.trim().length < 2) return "اكتب اسمك";
+      if (!PHONE_RE.test(f.seller_phone)) return "رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01";
+    }
+    return "";
   }
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    const p = normalizeDigits(phone).replace(/\s/g, "");
-    if (!(Number(hood) >= 1 && Number(hood) <= 999)) return setError("اكتب رقم المجاورة");
-    if (customArea && !(custom >= 50 && custom <= 5000)) return setError("المساحة لازم تكون بين 50 و5000 متر");
-    if (!ask) return setError("اكتب المطلوب");
-    if (!PHONE_RE.test(p)) return setError("رقم التليفون لازم يكون 11 رقم ويبدأ بـ 01");
+  async function next() {
+    const err = check(step);
+    setError(err);
+    if (err) return;
+    if (step < 3) { setStep(step + 1); window.scrollTo({ top: 0 }); return; }
     setBusy(true);
-    const { data, error } = await supabaseBrowser().rpc("submit_listing", {
-      p_tier: tier,
-      p_neighborhood: Number(hood),
-      p_area: effectiveArea,
-      p_ask: ask,
-      p_paid: paid,
-      p_features: features,
-      p_description: desc,
-      p_contact_phone: p,
-      p_plot_no: plotNo,
+    const { data, error } = await supabaseBrowser().rpc("submit_land", {
+      p: { ...f, hood: zone.hoods.length ? f.hood : "", grace_months: f.legal === "مستلمة" ? f.grace_months : "" },
     });
     setBusy(false);
-    if (error) return setError("الإعلان ما اتبعتش، راجع البيانات وجرّب تاني");
-    setDoneCode(String(data));
+    if (error) return setError(/too many/.test(error.message) ? "بعت إعلانات كتير النهارده من الرقم ده، كلّمنا واتساب" : "الإعلان ما اتبعتش، راجع البيانات وجرّب تاني");
+    setCode(String(data));
     window.scrollTo({ top: 0 });
   }
 
-  if (loading || !user) return <main><p className="loading">لحظة...</p></main>;
+  const chips = (k: "pos" | "dir" | "view" | "stage" | "legal" | "ownership" | "utilities", label: string) => (
+    <div className="field">{label}
+      <div className="opts">
+        {OPT[k].map((v) => (
+          <button key={v} type="button" className="opt" aria-pressed={f[k] === v} onClick={() => set(k, f[k] === v ? "" : v)}>{v}</button>
+        ))}
+      </div>
+    </div>
+  );
+  const num = (k: "block" | "plot_no" | "area" | "front_m" | "grace_months", label: string, ph = "", max = 4) => (
+    <label className="field" htmlFor={`f_${k}`}>{label}
+      <input id={`f_${k}`} className="num" inputMode="numeric" placeholder={ph} value={f[k]} autoComplete="off"
+        onChange={(e) => set(k, digitsOnly(e.target.value).slice(0, max))} />
+    </label>
+  );
+  const money = (k: "price" | "paid", label: string) => (
+    <label className="field" htmlFor={`f_${k}`}>{label}
+      <input id={`f_${k}`} className="num" inputMode="numeric" value={f[k] ? f[k]!.toLocaleString("en") : ""} autoComplete="off"
+        onChange={(e) => set(k, parseMoney(e.target.value))} />
+    </label>
+  );
 
-  if (doneCode) {
+  if (code) {
     return (
       <main>
-        <div className="wrap narrow">
+        <div className="wrap wiz">
           <div className="panel">
             <CloseButton label="إغلاق" />
             <h1>اتبعت للمراجعة</h1>
-            <div className="done">إعلانك رقم <span className="num">{doneCode}</span> دلوقتي &quot;في المراجعة&quot;، وهيظهر في الأراضي المعروضة أول ما يتوافق عليه. فريق جولدن بيت هيكلمك.</div>
+            <div className="done">إعلانك كوده <span className="num">{code}</span>. فريق جولدن بيت هيكلمك يراجع البيانات، وبعد الموافقة الأرض هتظهر في النتايج.</div>
             <div className="two">
-              <Link className="btn dark" href="/my">إعلاناتي</Link>
-              <Link className="btn line" href="/">الأراضي المعروضة</Link>
+              <Link className="btn dark" href="/">الأراضي المعروضة</Link>
+              <button type="button" className="btn line" onClick={() => { setF(initial); setStep(0); setCode(""); }}>اعرض أرض تانية</button>
             </div>
           </div>
         </div>
@@ -89,70 +99,83 @@ export default function SellPage() {
 
   return (
     <main>
-      <div className="wrap narrow" style={{ maxWidth: 680 }}>
-        <form className="panel" onSubmit={submit} noValidate>
+      <div className="wrap wiz">
+        <form className="panel" onSubmit={(e) => { e.preventDefault(); next(); }} noValidate>
           <CloseButton label="إغلاق" />
-          <h1>بيانات أرضك</h1>
-          <p>بعد ما تبعت، فريق جولدن بيت هيراجع البيانات ويكلمك، وبعد الموافقة الأرض هتظهر في الموقع.</p>
-          <div className="s-prev" aria-hidden="true"><Plot area={effectiveArea} big /></div>
-          <div className="two">
-            <div className="field">الفئة
-              <div className="chips">
-                {(["mt", "mm"] as Tier[]).map((t) => (
-                  <button key={t} type="button" aria-pressed={tier === t} onClick={() => pickTier(t)}>{tierName(t)}</button>
-                ))}
+          <h1>اعرض أرضك</h1>
+          <div className="steps">{STEPS.map((s, i) => <div key={s} className={i <= step ? "on" : ""}><i />{s}</div>)}</div>
+          <div className="prev"><Sketch area={areaOk ? area : f.tier === "mm" ? 500 : 276} pos={f.pos || null} dir={f.dir || null} front={Number(f.front_m) || null} big /></div>
+
+          {step === 0 && (
+            <>
+              <div className="field">الفئة
+                <div className="opts">
+                  {(["mm", "mt"] as Tier[]).map((t) => (
+                    <button key={t} type="button" className="opt" aria-pressed={f.tier === t}
+                      onClick={() => setF((c) => ({ ...c, tier: t, zone: ZONES.find((z) => z.tier === t)!.id, hood: "" }))}>{tierName(t)}</button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="field">المساحة
-              <div className="chips">
-                {AREAS[tier].map((a) => (
-                  <button key={a} type="button" className="num" aria-pressed={!customArea && area === a} onClick={() => { setArea(a); setCustomArea(""); }}>{a} م²</button>
-                ))}
+              <div className="field">المنطقة
+                <div className="opts">
+                  {ZONES.filter((z) => z.tier === f.tier).map((z) => (
+                    <button key={z.id} type="button" className="opt" aria-pressed={f.zone === z.id} onClick={() => setF((c) => ({ ...c, zone: z.id, hood: "" }))}>{z.short}</button>
+                  ))}
+                </div>
               </div>
-              <input
-                id="sAreaOther"
-                aria-label="مساحة تانية بالمتر"
-                className="num"
-                inputMode="numeric"
-                placeholder="أو اكتب المساحة بالمتر"
-                value={customArea}
-                onChange={(e) => setCustomArea(normalizeDigits(e.target.value).replace(/[^\d]/g, "").slice(0, 4))}
-              />
-            </div>
-          </div>
-          <div className="two">
-            <label className="field" htmlFor="sHood">المجاورة
-              <input id="sHood" className="num" inputMode="numeric" placeholder="رقم المجاورة" value={hood} autoComplete="off"
-                onChange={(e) => setHood(normalizeDigits(e.target.value).replace(/[^\d]/g, "").slice(0, 3))} />
-            </label>
-            <label className="field" htmlFor="sPlot">رقم القطعة
-              <input id="sPlot" className="num" value={plotNo} onChange={(e) => setPlotNo(e.target.value.slice(0, 20))} autoComplete="off" />
-            </label>
-          </div>
-          <div className="two">
-            <label className="field" htmlFor="sAsk">المطلوب (جنيه)
-              <input id="sAsk" className="num" inputMode="numeric" value={money(ask)} onChange={(e) => setAsk(parseMoney(normalizeDigits(e.target.value)))} autoComplete="off" />
-            </label>
-            <label className="field" htmlFor="sPaid">المدفوع (جنيه)
-              <input id="sPaid" className="num" inputMode="numeric" value={money(paid)} onChange={(e) => setPaid(parseMoney(normalizeDigits(e.target.value)))} autoComplete="off" />
-            </label>
-          </div>
-          <label className="field" htmlFor="sPhone">رقم التليفون
-            <input id="sPhone" className="num ltr" inputMode="tel" placeholder="01xxxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
-          </label>
-          <div className="field">مميزات الأرض
-            <div className="chips">
-              {FEATURES.map((f) => (
-                <button key={f} type="button" aria-pressed={features.includes(f)}
-                  onClick={() => setFeatures((cur) => (cur.includes(f) ? cur.filter((x) => x !== f) : [...cur, f]))}>{f}</button>
-              ))}
-            </div>
-          </div>
-          <label className="field" htmlFor="sDesc">وصف إضافي
-            <textarea id="sDesc" rows={3} maxLength={1000} value={desc} onChange={(e) => setDesc(e.target.value)} />
-          </label>
+              {zone.hoods.length > 0 && (
+                <label className="field" htmlFor="f_hood">المجاورة
+                  <input id="f_hood" list="hoodList" placeholder="اكتب رقم أو اسم المجاورة" value={f.hood} autoComplete="off"
+                    onChange={(e) => set("hood", e.target.value.slice(0, 40))} />
+                  <datalist id="hoodList">{zone.hoods.map((h) => <option key={h} value={h} />)}</datalist>
+                </label>
+              )}
+              <div className="two">{num("block", "البلوك")}{num("plot_no", "رقم القطعة (مش هيظهر)", "", 6)}</div>
+            </>
+          )}
+
+          {step === 1 && (
+            <>
+              {num("area", "المساحة (م²)", f.tier === "mm" ? "مثلًا 500" : "مثلًا 276")}
+              {chips("pos", "موقع القطعة")}
+              {chips("dir", "الاتجاه")}
+              {chips("view", "الإطلالة")}
+              {num("front_m", "عرض الواجهة (م)", "", 3)}
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              {chips("stage", "المرحلة البنائية")}
+              {chips("legal", "الاستلام")}
+              {f.legal === "مستلمة" && num("grace_months", "فاضل كام شهر في مهلة البناء؟", "", 3)}
+              {chips("ownership", "تسلسل الملكية")}
+              {chips("utilities", "المرافق")}
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <div className="two">{money("price", "المطلوب (جنيه) *")}{money("paid", "المدفوع (جنيه)")}</div>
+              <label className="field" htmlFor="f_desc">ملاحظات
+                <textarea id="f_desc" rows={3} maxLength={1000} value={f.description} onChange={(e) => set("description", e.target.value)} />
+              </label>
+              <div className="you">
+                <b>بياناتك</b>
+                <span>مش هتظهر في الإعلان. فريقنا بيستخدمها يكلمك بس.</span>
+                <label className="field" htmlFor="f_name">الاسم *<input id="f_name" value={f.seller_name} onChange={(e) => set("seller_name", e.target.value.slice(0, 80))} autoComplete="name" /></label>
+                <label className="field" htmlFor="f_phone">رقم الموبايل *
+                  <input id="f_phone" className="num ltr" inputMode="tel" placeholder="01xxxxxxxxx" value={f.seller_phone} onChange={(e) => set("seller_phone", cleanPhone(e.target.value))} autoComplete="tel" />
+                </label>
+              </div>
+            </>
+          )}
+
           {error && <div className="err" role="alert">{error}</div>}
-          <button className="btn dark block" type="submit" disabled={busy}>{busy ? "بنبعت..." : "ابعت للمراجعة"}</button>
+          <div className="wnav">
+            {step > 0 && <button type="button" className="btn line" onClick={() => { setError(""); setStep(step - 1); }}>رجوع</button>}
+            <button type="submit" className="btn dark" disabled={busy}>{busy ? "بنبعت..." : step === 3 ? "ابعت للمراجعة" : "التالي"}</button>
+          </div>
         </form>
       </div>
     </main>
