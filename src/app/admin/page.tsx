@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useAccount } from "@/lib/useAccount";
-import { PHONE_RE, cleanPhone, fmtFull, fmtShort, phoneEmail, placeLabel, tierName, waTo } from "@/lib/site";
+import { PHONE_RE, cleanPhone, fmtFull, fmtShort, normalizeDigits, phoneEmail, placeLabel, tierName, waTo } from "@/lib/site";
 import { STATUS_NAME, type Land, type LandStatus } from "@/lib/types";
 import { WhatsAppIcon } from "@/components/Icons";
 
@@ -14,6 +14,15 @@ type ReqStatus = "new" | "contacted" | "done" | "cancelled";
 type Purchase = { id: string; name: string; phone: string; status: ReqStatus; created_at: string; lands: Pick<Land, "code" | "area" | "zone" | "hood" | "price"> | null };
 type Alert = { id: string; name: string; phone: string; status: "new" | "contacted" | "done"; criteria: Record<string, unknown>; created_at: string };
 type Tab = "pending" | "lands" | "requests" | "alerts";
+
+type Paged<T> = { items: T[]; page: number; more: boolean };
+const ADMIN_PAGE = 50;
+const EMPTY = { items: [], page: 0, more: false };
+const LAND_SELECT = "*, land_private(seller_name,seller_phone,plot_no)";
+function appendPage<T extends { id: string }>(cur: Paged<T>, rows: T[], page: number): Paged<T> {
+  const items = page === 0 ? rows : [...cur.items, ...rows.filter((r) => !cur.items.some((c) => c.id === r.id))];
+  return { items, page, more: rows.length === ADMIN_PAGE };
+}
 
 const REQ_NAME: Record<ReqStatus, string> = { new: "جديد", contacted: "اتكلمنا معاه", done: "اتقفل", cancelled: "اتلغى" };
 const priv = (x: AdminLand): Private | null => (Array.isArray(x.land_private) ? x.land_private[0] ?? null : x.land_private);
@@ -108,51 +117,101 @@ function PasswordForm({ onClose }: { onClose: () => void }) {
 
 function Dashboard({ name }: { name: string }) {
   const [tab, setTab] = useState<Tab>("pending");
-  const [lands, setLands] = useState<AdminLand[]>([]);
-  const [requests, setRequests] = useState<Purchase[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [pending, setPending] = useState<Paged<AdminLand>>(EMPTY);
+  const [lands, setLands] = useState<Paged<AdminLand>>(EMPTY);
+  const [requests, setRequests] = useState<Paged<Purchase>>(EMPTY);
+  const [alerts, setAlerts] = useState<Paged<Alert>>(EMPTY);
+  const [counts, setCounts] = useState({ pending: 0, approved: 0, newReq: 0, newAlerts: 0 });
   const [code, setCode] = useState("");
+  const [found, setFound] = useState<AdminLand[] | null>(null);
   const [statusFilter, setStatusFilter] = useState<LandStatus | "all">("approved");
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [pwOpen, setPwOpen] = useState(false);
 
-  const load = useCallback(async () => {
+  const loadCounts = useCallback(async () => {
     const sb = supabaseBrowser();
-    const [l, r, a] = await Promise.all([
-      sb.from("lands").select("*, land_private(seller_name,seller_phone,plot_no)").order("created_at", { ascending: false }),
-      sb.from("purchase_requests").select("id,name,phone,status,created_at, lands(code,area,zone,hood,price)").order("created_at", { ascending: false }),
-      sb.from("land_alerts").select("*").order("created_at", { ascending: false }),
+    const head = { count: "exact" as const, head: true };
+    const [p, a, r, al] = await Promise.all([
+      sb.from("lands").select("id", head).eq("status", "pending"),
+      sb.from("lands").select("id", head).eq("status", "approved"),
+      sb.from("purchase_requests").select("id", head).eq("status", "new"),
+      sb.from("land_alerts").select("id", head).eq("status", "new"),
     ]);
-    setError(l.error || r.error || a.error ? "في بيانات ما اتحمّلتش، دوس تحديث" : "");
-    setLands((l.data ?? []) as unknown as AdminLand[]);
-    setRequests((r.data ?? []) as unknown as Purchase[]);
-    setAlerts((a.data ?? []) as Alert[]);
+    setCounts({ pending: p.count ?? 0, approved: a.count ?? 0, newReq: r.count ?? 0, newAlerts: al.count ?? 0 });
   }, []);
+
+  // Each list loads ADMIN_PAGE rows at a time; "اعرض أكتر" appends the next page.
+  const loadPending = useCallback(async (page = 0) => {
+    const { data, error } = await supabaseBrowser().from("lands").select(LAND_SELECT).eq("status", "pending").order("created_at", { ascending: false }).range(page * ADMIN_PAGE, page * ADMIN_PAGE + ADMIN_PAGE - 1);
+    if (error) return setError("في بيانات ما اتحمّلتش، دوس تحديث");
+    setPending((cur) => appendPage(cur, (data ?? []) as unknown as AdminLand[], page));
+  }, []);
+  const loadLands = useCallback(async (page = 0) => {
+    let q = supabaseBrowser().from("lands").select(LAND_SELECT).neq("status", "pending");
+    if (statusFilter !== "all") q = q.eq("status", statusFilter);
+    const { data, error } = await q.order("created_at", { ascending: false }).range(page * ADMIN_PAGE, page * ADMIN_PAGE + ADMIN_PAGE - 1);
+    if (error) return setError("في بيانات ما اتحمّلتش، دوس تحديث");
+    setLands((cur) => appendPage(cur, (data ?? []) as unknown as AdminLand[], page));
+  }, [statusFilter]);
+  const loadRequests = useCallback(async (page = 0) => {
+    const { data, error } = await supabaseBrowser().from("purchase_requests").select("id,name,phone,status,created_at, lands(code,area,zone,hood,price)").order("created_at", { ascending: false }).range(page * ADMIN_PAGE, page * ADMIN_PAGE + ADMIN_PAGE - 1);
+    if (error) return setError("في بيانات ما اتحمّلتش، دوس تحديث");
+    setRequests((cur) => appendPage(cur, (data ?? []) as unknown as Purchase[], page));
+  }, []);
+  const loadAlerts = useCallback(async (page = 0) => {
+    const { data, error } = await supabaseBrowser().from("land_alerts").select("*").order("created_at", { ascending: false }).range(page * ADMIN_PAGE, page * ADMIN_PAGE + ADMIN_PAGE - 1);
+    if (error) return setError("في بيانات ما اتحمّلتش، دوس تحديث");
+    setAlerts((cur) => appendPage(cur, (data ?? []) as Alert[], page));
+  }, []);
+
+  const load = useCallback(() => {
+    setError("");
+    loadCounts(); loadPending(0); loadRequests(0); loadAlerts(0);
+  }, [loadCounts, loadPending, loadRequests, loadAlerts]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadLands(0); }, [loadLands]);
 
   async function update(table: "lands" | "purchase_requests" | "land_alerts", id: string, status: string) {
     setBusyId(id); setError("");
     const { error } = await supabaseBrowser().from(table).update({ status }).eq("id", id);
     setBusyId("");
     if (error) return setError("التعديل ما اتحفظش");
-    if (table === "lands") setLands((c) => c.map((x) => (x.id === id ? { ...x, status: status as LandStatus } : x)));
-    if (table === "purchase_requests") setRequests((c) => c.map((x) => (x.id === id ? { ...x, status: status as ReqStatus } : x)));
-    if (table === "land_alerts") setAlerts((c) => c.map((x) => (x.id === id ? { ...x, status: status as Alert["status"] } : x)));
+    if (table === "lands") {
+      const patch = (p: Paged<AdminLand>) => ({ ...p, items: p.items.map((x) => (x.id === id ? { ...x, status: status as LandStatus } : x)) });
+      setPending((p) => ({ ...p, items: p.items.filter((x) => x.id !== id) }));
+      setLands(patch);
+      setFound((f) => f && f.map((x) => (x.id === id ? { ...x, status: status as LandStatus } : x)));
+    }
+    if (table === "purchase_requests") setRequests((p) => ({ ...p, items: p.items.map((x) => (x.id === id ? { ...x, status: status as ReqStatus } : x)) }));
+    if (table === "land_alerts") setAlerts((p) => ({ ...p, items: p.items.map((x) => (x.id === id ? { ...x, status: status as Alert["status"] } : x)) }));
+    loadCounts();
   }
 
-  // Code search: "1005", "gb-1005" or a seller phone all work.
-  const q = code.trim().toUpperCase().replace(/\s/g, "");
-  const found = useMemo(() => {
-    if (!q) return [];
-    const digits = q.replace(/[^\d]/g, "");
-    return lands.filter((x) => x.code.toUpperCase().includes(q) || (digits.length >= 3 && x.code.replace(/[^\d]/g, "").endsWith(digits)) || (digits.length >= 6 && priv(x)?.seller_phone.includes(digits)));
-  }, [q, lands]);
+  // Code search runs in the database: "GB-1005", "1005" or a seller phone (6+ digits) all work.
+  useEffect(() => {
+    const q = normalizeDigits(code).toUpperCase().replace(/[^A-Z0-9-]/g, "");
+    if (!q) { setFound(null); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      const sb = supabaseBrowser();
+      const digits = q.replace(/[^\d]/g, "");
+      const byCode = sb.from("lands").select(LAND_SELECT).ilike("code", `%${q}%`).order("created_at", { ascending: false }).limit(20);
+      const byPhone = digits.length >= 6 ? sb.from("land_private").select("land_id").like("seller_phone", `%${digits}%`).limit(20) : null;
+      const [c, p] = await Promise.all([byCode, byPhone]);
+      let rows = (c.data ?? []) as unknown as AdminLand[];
+      const ids = ((p?.data ?? []) as { land_id: string }[]).map((x) => x.land_id).filter((id) => !rows.some((r) => r.id === id));
+      if (ids.length) {
+        const { data } = await sb.from("lands").select(LAND_SELECT).in("id", ids);
+        rows = [...rows, ...((data ?? []) as unknown as AdminLand[])];
+      }
+      if (alive) setFound(rows);
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [code]);
 
-  const pending = lands.filter((x) => x.status === "pending");
-  const shown = lands.filter((x) => x.status !== "pending" && (statusFilter === "all" || x.status === statusFilter));
-  const newReq = requests.filter((r) => r.status === "new").length;
-  const newAlerts = alerts.filter((r) => r.status === "new").length;
+  const newReq = counts.newReq;
+  const newAlerts = counts.newAlerts;
 
   const landRow = (x: AdminLand) => {
     const p = priv(x);
@@ -193,28 +252,28 @@ function Dashboard({ name }: { name: string }) {
           <span>ابحث بكود الوحدة</span>
           <input id="codeSearch" className="num ltr" placeholder="GB-1005 أو 1005 أو رقم البائع" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" />
         </label>
-        {q && (
+        {found && (
           <div className="rows">
             {found.length ? found.map(landRow) : <div className="empty">مفيش وحدة بالكود ده.</div>}
           </div>
         )}
 
         <div className="kpis">
-          <button type="button" className={`kpi${pending.length ? " hot" : ""}`} onClick={() => setTab("pending")}><span className="k-l">مستني مراجعة</span><b className="k-v num">{pending.length}</b></button>
-          <button type="button" className="kpi" onClick={() => { setTab("lands"); setStatusFilter("approved"); }}><span className="k-l">أراضي معروضة</span><b className="k-v num">{lands.filter((x) => x.status === "approved").length}</b></button>
+          <button type="button" className={`kpi${counts.pending ? " hot" : ""}`} onClick={() => setTab("pending")}><span className="k-l">مستني مراجعة</span><b className="k-v num">{counts.pending}</b></button>
+          <button type="button" className="kpi" onClick={() => { setTab("lands"); setStatusFilter("approved"); }}><span className="k-l">أراضي معروضة</span><b className="k-v num">{counts.approved}</b></button>
           <button type="button" className={`kpi${newReq ? " hot" : ""}`} onClick={() => setTab("requests")}><span className="k-l">طلبات شراء جديدة</span><b className="k-v num">{newReq}</b></button>
           <button type="button" className={`kpi${newAlerts ? " hot" : ""}`} onClick={() => setTab("alerts")}><span className="k-l">تنبيهات جديدة</span><b className="k-v num">{newAlerts}</b></button>
         </div>
 
         <div className="tabs" role="tablist">
-          <button role="tab" aria-selected={tab === "pending"} onClick={() => setTab("pending")}>المراجعة<span className="num">{pending.length}</span></button>
+          <button role="tab" aria-selected={tab === "pending"} onClick={() => setTab("pending")}>المراجعة<span className="num">{counts.pending}</span></button>
           <button role="tab" aria-selected={tab === "lands"} onClick={() => setTab("lands")}>الأراضي</button>
-          <button role="tab" aria-selected={tab === "requests"} onClick={() => setTab("requests")}>طلبات الشراء<span className="num">{requests.length}</span></button>
-          <button role="tab" aria-selected={tab === "alerts"} onClick={() => setTab("alerts")}>التنبيهات<span className="num">{alerts.length}</span></button>
+          <button role="tab" aria-selected={tab === "requests"} onClick={() => setTab("requests")}>طلبات الشراء{newReq > 0 && <span className="num">{newReq}</span>}</button>
+          <button role="tab" aria-selected={tab === "alerts"} onClick={() => setTab("alerts")}>التنبيهات{newAlerts > 0 && <span className="num">{newAlerts}</span>}</button>
         </div>
         {error && <div className="err" role="alert">{error}</div>}
 
-        {tab === "pending" && <div className="rows">{pending.length ? pending.map(landRow) : <div className="empty">مفيش أراضي مستنية مراجعة.</div>}</div>}
+        {tab === "pending" && <div className="rows">{pending.items.length ? pending.items.map(landRow) : <div className="empty">مفيش أراضي مستنية مراجعة.</div>}<More list={pending} onMore={() => loadPending(pending.page + 1)} /></div>}
 
         {tab === "lands" && (
           <>
@@ -223,14 +282,14 @@ function Dashboard({ name }: { name: string }) {
                 <option value="approved">معروضة</option><option value="sold">اتباعت</option><option value="rejected">مرفوضة</option><option value="all">الكل</option>
               </select>
             </div>
-            <div className="rows">{shown.length ? shown.map(landRow) : <div className="empty">مفيش أراضي هنا.</div>}</div>
+            <div className="rows">{lands.items.length ? lands.items.map(landRow) : <div className="empty">مفيش أراضي هنا.</div>}<More list={lands} onMore={() => loadLands(lands.page + 1)} /></div>
           </>
         )}
 
         {tab === "requests" && (
           <div className="rows">
-            {requests.length === 0 && <div className="empty">لسه مفيش طلبات شراء.</div>}
-            {requests.map((r) => (
+            {requests.items.length === 0 && <div className="empty">لسه مفيش طلبات شراء.</div>}
+            {requests.items.map((r) => (
               <div className="arow" key={r.id}>
                 <div>
                   <h3><span>{r.name}</span><a className="num" href={`tel:${r.phone}`}>{r.phone}</a><span className={`tag ${r.status === "new" ? "st-pending" : r.status === "done" ? "st-approved" : r.status === "cancelled" ? "st-rejected" : ""}`}>{REQ_NAME[r.status]}</span></h3>
@@ -245,13 +304,14 @@ function Dashboard({ name }: { name: string }) {
                 </div>
               </div>
             ))}
+            <More list={requests} onMore={() => loadRequests(requests.page + 1)} />
           </div>
         )}
 
         {tab === "alerts" && (
           <div className="rows">
-            {alerts.length === 0 && <div className="empty">لسه مفيش تنبيهات.</div>}
-            {alerts.map((a) => (
+            {alerts.items.length === 0 && <div className="empty">لسه مفيش تنبيهات.</div>}
+            {alerts.items.map((a) => (
               <div className="arow" key={a.id}>
                 <div>
                   <h3><span>{a.name}</span><a className="num" href={`tel:${a.phone}`}>{a.phone}</a><span className={`tag ${a.status === "new" ? "st-pending" : a.status === "done" ? "st-approved" : ""}`}>{a.status === "new" ? "جديد" : a.status === "done" ? "اتقفل" : "اتكلمنا معاه"}</span></h3>
@@ -265,11 +325,17 @@ function Dashboard({ name }: { name: string }) {
                 </div>
               </div>
             ))}
+            <More list={alerts} onMore={() => loadAlerts(alerts.page + 1)} />
           </div>
         )}
       </div>
     </main>
   );
+}
+
+function More<T>({ list, onMore }: { list: Paged<T>; onMore: () => void }) {
+  if (!list.more) return null;
+  return <div className="more"><button type="button" className="btn line" onClick={onMore}>اعرض أكتر</button></div>;
 }
 
 function describe(c: Record<string, unknown>) {

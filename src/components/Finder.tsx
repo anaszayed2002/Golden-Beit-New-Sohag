@@ -1,88 +1,102 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import LandCard from "./LandCard";
 import { CloseIcon, FilterIcon } from "./Icons";
 import { useCompare } from "@/lib/compare";
 import { supabaseBrowser } from "@/lib/supabase";
 import { FRONT_MIN, OPT, PHONE_RE, ZONES, cleanPhone, fmtShort, hoodLabel, parseMoney, tierName, zoneOf, type Tier } from "@/lib/site";
+import { FILTER_KEYS, countLands, emptyFilters, searchLands, type FilterKey, type Filters, type SearchQuery, type Sort } from "@/lib/search";
 import type { Land } from "@/lib/types";
 
-type Key = "area" | "pos" | "dir" | "view" | "front" | "stage" | "legal" | "ownership" | "utilities";
-type Filters = Record<Key, Set<string>>;
-const KEYS: Key[] = ["area", "pos", "dir", "view", "front", "stage", "legal", "ownership", "utilities"];
-const GROUPS: [Key, string][] = [
+const GROUPS: [FilterKey, string][] = [
   ["area", "المساحة"], ["pos", "موقع القطعة"], ["dir", "الاتجاه"], ["view", "الإطلالة"], ["front", "عرض الواجهة"],
   ["stage", "المرحلة البنائية"], ["legal", "الاستلام"], ["ownership", "تسلسل الملكية"], ["utilities", "المرافق"],
 ];
-const empty = (): Filters => Object.fromEntries(KEYS.map((k) => [k, new Set<string>()])) as Filters;
-const clone = (f: Filters): Filters => Object.fromEntries(KEYS.map((k) => [k, new Set(f[k])])) as Filters;
-type Sort = "new" | "price" | "area";
+const toggleIn = (f: Filters, k: FilterKey, v: string): Filters => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] });
+const optionLabel = (k: FilterKey, v: string) => (k === "area" ? `${v} م²` : k === "front" ? `${v}م+` : v);
 
-type Base = { tier: Tier; zone: string; hood: string; budget: number | null };
+type Props = { initialTier: Tier; initialItems: Land[]; initialTotal: number };
 
-function matches(l: Land, b: Base, f: Filters) {
-  if (l.tier !== b.tier) return false;
-  if (b.zone && l.zone !== b.zone) return false;
-  if (b.hood && l.hood !== b.hood) return false;
-  if (b.budget && l.price > b.budget) return false;
-  if (f.area.size && !f.area.has(String(l.area))) return false;
-  for (const k of ["pos", "dir", "view", "stage", "legal", "ownership", "utilities"] as const) {
-    if (f[k].size && !f[k].has(l[k] ?? "")) return false;
-  }
-  if (f.front.size && !(l.front_m && [...f.front].some((v) => l.front_m! >= Number(v)))) return false;
-  return true;
-}
-
-export default function Finder({ lands }: { lands: Land[] }) {
-  // Open on the tier that has lands, so the first view is never empty when the other one isn't.
-  const [tier, setTier] = useState<Tier>(() => (lands.some((l) => l.tier === "mm") || !lands.length ? "mm" : "mt"));
+export default function Finder({ initialTier, initialItems, initialTotal }: Props) {
+  const [tier, setTier] = useState<Tier>(initialTier);
   const [zone, setZone] = useState("");
   const [hood, setHood] = useState("");
   const [budget, setBudget] = useState<number | null>(null);
   const [sort, setSort] = useState<Sort>("new");
-  const [filters, setFilters] = useState<Filters>(empty);
+  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [items, setItems] = useState<Land[]>(initialItems);
+  const [total, setTotal] = useState(initialTotal);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [areas, setAreas] = useState<string[]>([]);
   const [draft, setDraft] = useState<Filters | null>(null);
+  const [draftCount, setDraftCount] = useState<number | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
   const compare = useCompare();
+  const firstRun = useRef(true);
+  const reqId = useRef(0);
 
-  const base: Base = { tier, zone, hood, budget };
-  const items = useMemo(() => {
-    const r = lands.filter((l) => matches(l, base, filters));
-    if (sort === "price") r.sort((a, b) => a.price - b.price);
-    else if (sort === "area") r.sort((a, b) => b.area - a.area);
-    else r.sort((a, b) => (b.approved_at ?? b.created_at).localeCompare(a.approved_at ?? a.created_at));
-    return r;
+  const query: SearchQuery = { tier, zone, hood, budget, filters, sort };
+  const key = JSON.stringify(query);
+
+  // New search whenever the query changes (the server already rendered the first one). Typing a budget waits a moment.
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    const id = ++reqId.current;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      const r = await searchLands(supabaseBrowser(), query, 0);
+      if (id !== reqId.current) return;
+      setFailed(!!r.error);
+      setItems(r.items); setTotal(r.total); setPage(0); setLoading(false);
+    }, 250);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lands, tier, zone, hood, budget, sort, filters]);
-
-  const zones = ZONES.filter((z) => z.tier === tier);
-  const curZone = zone ? zoneOf(zone) : null;
-  const areas = [...new Set(lands.filter((l) => l.tier === tier).map((l) => l.area))].sort((a, b) => a - b).map(String);
-  const filterCount = KEYS.reduce((s, k) => s + filters[k].size, 0);
+  }, [key]);
 
   useEffect(() => {
-    document.body.style.overflow = draft ? "hidden" : "";
+    supabaseBrowser().rpc("land_areas", { p_tier: tier }).then(({ data }) => setAreas(((data ?? []) as number[]).map(String)));
+  }, [tier]);
+
+  async function loadMore() {
+    const id = ++reqId.current;
+    setLoading(true);
+    const r = await searchLands(supabaseBrowser(), query, page + 1);
+    if (id !== reqId.current) return;
+    setFailed(!!r.error);
+    setItems((cur) => [...cur, ...r.items.filter((x) => !cur.some((c) => c.id === x.id))]);
+    setTotal(r.total); setPage(page + 1); setLoading(false);
+  }
+
+  // Live count on the filter sheet's apply button
+  useEffect(() => {
+    if (!draft) return;
+    setDraftCount(null);
+    let alive = true;
+    const t = setTimeout(() => countLands(supabaseBrowser(), { ...query, filters: draft }).then((n) => alive && setDraftCount(n)), 200);
+    return () => { alive = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, tier, zone, hood, budget]);
+
+  useEffect(() => {
+    document.body.style.overflow = draft || alertOpen ? "hidden" : "";
     if (!draft) return;
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setDraft(null);
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
-  }, [draft]);
+  }, [draft, alertOpen]);
 
-  const optionsFor = (k: Key): string[] => (k === "area" ? areas : k === "front" ? FRONT_MIN.map(String) : [...OPT[k]]);
-  const optionLabel = (k: Key, v: string) => (k === "area" ? `${v} م²` : k === "front" ? `${v}م+` : v);
+  const zones = ZONES.filter((z) => z.tier === tier);
+  const curZone = zone ? zoneOf(zone) : null;
+  const filterCount = FILTER_KEYS.reduce((s, k) => s + filters[k].length, 0);
+  const optionsFor = (k: FilterKey): string[] => (k === "area" ? areas : k === "front" ? FRONT_MIN.map(String) : [...OPT[k]]);
 
-  const active: [Key | "budget", string, string][] = [];
+  const active: [FilterKey | "budget", string, string][] = [];
   if (budget) active.push(["budget", "", "لحد " + fmtShort(budget)]);
-  KEYS.forEach((k) => filters[k].forEach((v) => active.push([k, v, k === "front" ? `واجهة ${v}م+` : optionLabel(k, v)])));
-
-  const removeActive = (k: Key | "budget", v: string) => {
-    if (k === "budget") return setBudget(null);
-    const next = clone(filters);
-    next[k].delete(v);
-    setFilters(next);
-  };
+  FILTER_KEYS.forEach((k) => filters[k].forEach((v) => active.push([k, v, k === "front" ? `واجهة ${v}م+` : optionLabel(k, v)])));
 
   return (
     <>
@@ -91,7 +105,7 @@ export default function Finder({ lands }: { lands: Land[] }) {
           <div className="seg" role="group" aria-label="الفئة">
             {(["mm", "mt"] as Tier[]).map((t) => (
               <button key={t} type="button" aria-pressed={tier === t}
-                onClick={() => { setTier(t); setZone(""); setHood(""); setFilters((f) => { const n = clone(f); n.area.clear(); return n; }); }}>
+                onClick={() => { setTier(t); setZone(""); setHood(""); setFilters((f) => ({ ...f, area: [] })); }}>
                 {tierName(t)}<small>{t === "mm" ? "455 و214 فدان والتوسعات" : "735 فدان والأحياء"}</small>
               </button>
             ))}
@@ -125,7 +139,7 @@ export default function Finder({ lands }: { lands: Land[] }) {
                 <span>جنيه</span>
               </label>
             </div>
-            <button type="button" className="fbtn" onClick={() => setDraft(clone(filters))}>
+            <button type="button" className="fbtn" onClick={() => setDraft({ ...filters })}>
               <FilterIcon />فلاتر{filterCount > 0 && <i className="num">{filterCount}</i>}
             </button>
           </div>
@@ -134,7 +148,7 @@ export default function Finder({ lands }: { lands: Land[] }) {
 
       <section className="wrap">
         <div className="res-h">
-          <h2>{items.length ? `${items.length} أرض ${tierName(tier)}` : "مفيش أراضي بالمواصفات دي"}</h2>
+          <h2 className="num">{total ? `${total.toLocaleString("en")} أرض ${tierName(tier)}` : loading ? "بندوّر..." : "مفيش أراضي بالمواصفات دي"}</h2>
           <select aria-label="ترتيب" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             <option value="new">الأحدث</option>
             <option value="price">الأقل سعرًا</option>
@@ -143,20 +157,30 @@ export default function Finder({ lands }: { lands: Land[] }) {
         </div>
         {active.length > 0 && (
           <div className="active">
-            {active.map(([k, v, t]) => <button key={k + v} type="button" onClick={() => removeActive(k, v)}>{t}</button>)}
+            {active.map(([k, v, t]) => (
+              <button key={k + v} type="button" onClick={() => (k === "budget" ? setBudget(null) : setFilters(toggleIn(filters, k, v)))}>{t}</button>
+            ))}
           </div>
         )}
-        <div className="grid">
+        {failed && <div className="err" role="alert" style={{ marginBottom: 12 }}>النتايج ما اتحمّلتش، جرّب تاني.</div>}
+        <div className={`grid${loading && page === 0 ? " dim" : ""}`}>
           {items.map((l) => (
             <LandCard key={l.id} land={l} inCompare={compare.has(l.code)} onCompare={() => compare.toggle(l.code)} />
           ))}
-          {!items.length && (
+          {!items.length && !loading && (
             <div className="empty">
               <span>جرّب تشيل فلتر أو تزوّد الميزانية.</span>
-              <button type="button" className="btn line" onClick={() => { setFilters(empty()); setBudget(null); }}>مسح الفلاتر</button>
+              <button type="button" className="btn line" onClick={() => { setFilters(emptyFilters()); setBudget(null); }}>مسح الفلاتر</button>
             </div>
           )}
         </div>
+        {items.length < total && (
+          <div className="more">
+            <button type="button" className="btn line" disabled={loading} onClick={loadMore}>
+              {loading ? "لحظة..." : `اعرض أكتر (فاضل ${(total - items.length).toLocaleString("en")})`}
+            </button>
+          </div>
+        )}
         <div className="alert">
           <div><b>مش لاقي الأرض اللي في دماغك؟</b><span>سيب اسمك ورقمك، وأول ما تنزل أرض بالمواصفات دي هنبعتهالك على واتساب.</span></div>
           <button type="button" className="btn gold" onClick={() => setAlertOpen(true)}>فعّل التنبيه</button>
@@ -180,8 +204,7 @@ export default function Finder({ lands }: { lands: Land[] }) {
                     <h3>{title}</h3>
                     <div className="opts">
                       {opts.map((v) => (
-                        <button key={v} type="button" className={`opt${k === "area" ? " num" : ""}`} aria-pressed={draft[k].has(v)}
-                          onClick={() => { const n = clone(draft); n[k].has(v) ? n[k].delete(v) : n[k].add(v); setDraft(n); }}>
+                        <button key={v} type="button" className={`opt${k === "area" ? " num" : ""}`} aria-pressed={draft[k].includes(v)} onClick={() => setDraft(toggleIn(draft, k, v))}>
                           {optionLabel(k, v)}
                         </button>
                       ))}
@@ -191,16 +214,16 @@ export default function Finder({ lands }: { lands: Land[] }) {
               })}
             </div>
             <div className="sheet-f">
-              <button type="button" className="btn line" onClick={() => setDraft(empty())}>مسح الكل</button>
-              <button type="button" className="btn dark" onClick={() => { setFilters(draft); setDraft(null); }}>
-                اعرض {lands.filter((l) => matches(l, base, draft)).length} أرض
+              <button type="button" className="btn line" onClick={() => setDraft(emptyFilters())}>مسح الكل</button>
+              <button type="button" className="btn dark num" onClick={() => { setFilters(draft); setDraft(null); }}>
+                {draftCount == null ? "اعرض النتايج" : `اعرض ${draftCount.toLocaleString("en")} أرض`}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {alertOpen && <AlertForm criteria={{ tier, zone, hood, budget, ...Object.fromEntries(KEYS.map((k) => [k, [...filters[k]]])) }} onClose={() => setAlertOpen(false)} />}
+      {alertOpen && <AlertForm criteria={{ tier, zone, hood, budget, ...filters }} onClose={() => setAlertOpen(false)} />}
     </>
   );
 }
@@ -220,7 +243,7 @@ function AlertForm({ criteria, onClose }: { criteria: Record<string, unknown>; o
     setBusy(true);
     const { error } = await supabaseBrowser().from("land_alerts").insert({ name: name.trim(), phone, criteria });
     setBusy(false);
-    if (error) return setError("التنبيه ما اتسجلش، جرّب تاني");
+    if (error) return setError(/too many/.test(error.message) ? "سجلت تنبيهات كتير النهارده من الرقم ده" : "التنبيه ما اتسجلش، جرّب تاني");
     setDone(true);
   }
 

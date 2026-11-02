@@ -24,7 +24,10 @@ export default function PurchaseBox({ landId, code }: { landId: string; code: st
     setBusy(true);
     const { error } = await supabaseBrowser().from("purchase_requests").insert({ land_id: landId, name: name.trim(), phone });
     setBusy(false);
-    if (error) return setError("الطلب ما اتبعتش، جرّب تاني أو كلّمنا واتساب");
+    if (error) {
+      if (error.code === "23505") return setDone(true); // already requested this land with this number
+      return setError(/too many/.test(error.message) ? "بعت طلبات كتير النهارده من الرقم ده، كلّمنا واتساب" : "الطلب ما اتبعتش، جرّب تاني أو كلّمنا واتساب");
+    }
     setDone(true);
   }
 
