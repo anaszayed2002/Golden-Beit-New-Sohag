@@ -173,6 +173,18 @@ function Dashboard({ name }: { name: string }) {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadLands(0); }, [loadLands]);
 
+  // Deleting frees the land's code for the next new listing; its purchase requests go with it.
+  async function remove(id: string) {
+    setBusyId(id); setError("");
+    const { error } = await supabaseBrowser().from("lands").delete().eq("id", id);
+    setBusyId("");
+    if (error) return setError("الحذف ما تمش، جرّب تاني");
+    const drop = <T extends { id: string }>(p: Paged<T>) => ({ ...p, items: p.items.filter((x) => x.id !== id) });
+    setLands(drop); setPending(drop);
+    setFound((f) => f && f.filter((x) => x.id !== id));
+    loadCounts(); loadRequests(0);
+  }
+
   async function update(table: "lands" | "purchase_requests" | "land_alerts", id: string, status: string) {
     setBusyId(id); setError("");
     const { error } = await supabaseBrowser().from(table).update({ status }).eq("id", id);
@@ -232,7 +244,8 @@ function Dashboard({ name }: { name: string }) {
           {x.status === "approved" && <Link className="btn line sm" href={`/land/${x.code}`} target="_blank">الإعلان</Link>}
           {x.status !== "approved" && <button className="btn green sm" disabled={busyId === x.id} onClick={() => update("lands", x.id, "approved")}>{x.status === "pending" ? "وافق وانشر" : "انشر تاني"}</button>}
           {x.status === "approved" && <button className="btn dark sm" disabled={busyId === x.id} onClick={() => update("lands", x.id, "sold")}>اتباعت</button>}
-          {(x.status === "pending" || x.status === "approved") && <button className="btn danger sm" disabled={busyId === x.id} onClick={() => update("lands", x.id, "rejected")}>{x.status === "pending" ? "ارفض" : "إخفاء"}</button>}
+          {x.status === "pending" && <button className="btn danger sm" disabled={busyId === x.id} onClick={() => update("lands", x.id, "rejected")}>ارفض</button>}
+          {x.status !== "pending" && <DeleteButton code={x.code} busy={busyId === x.id} onDelete={() => remove(x.id)} />}
         </div>
       </div>
     );
@@ -333,6 +346,22 @@ function Dashboard({ name }: { name: string }) {
         )}
       </div>
     </main>
+  );
+}
+
+// Two taps so a land is never deleted by a slip of the finger.
+function DeleteButton({ code, busy, onDelete }: { code: string; busy: boolean; onDelete: () => void }) {
+  const [sure, setSure] = useState(false);
+  useEffect(() => {
+    if (!sure) return;
+    const t = setTimeout(() => setSure(false), 5000);
+    return () => clearTimeout(t);
+  }, [sure]);
+  if (!sure) return <button type="button" className="btn danger sm" disabled={busy} onClick={() => setSure(true)}>حذف</button>;
+  return (
+    <button type="button" className="btn sm del-sure" disabled={busy} onClick={onDelete} title={`حذف ${code} نهائيًا`}>
+      {busy ? "بيتحذف..." : `أكيد احذف ${code}`}
+    </button>
   );
 }
 
