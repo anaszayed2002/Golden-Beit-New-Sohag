@@ -25,6 +25,7 @@ export type Land = {
   legal: string | null;
   grace_months: number | null;
   ownership: string | null;
+  ownership_note: string | null;
   utilities: string | null;
   price: number;
   paid: number | null;
@@ -35,6 +36,6 @@ export type Land = {
 };
 
 export const LAND_COLUMNS =
-  "id,code,tier,zone,hood,block,area,pos,dir,view,front_m,stage,legal,grace_months,ownership,utilities,price,paid,description,status,created_at,approved_at";
+  "id,code,tier,zone,hood,block,area,pos,dir,view,front_m,stage,legal,grace_months,ownership,ownership_note,utilities,price,paid,description,status,created_at,approved_at";
 
 export type Profile = { id: string; full_name: string; phone: string; role: "user" | "admin"; created_at?: string };

@@ -6,18 +6,27 @@ import Sketch from "@/components/Sketch";
 import CloseButton from "@/components/CloseButton";
 import { supabaseBrowser } from "@/lib/supabase";
 import { OPT, PHONE_RE, ZONES, cleanPhone, digitsOnly, parseMoney, tierName, zoneOf, type Tier, type ZoneId } from "@/lib/site";
+import { landRows } from "@/lib/landText";
 
-const STEPS = ["الموقع", "المواصفات", "الحالة والملكية", "السعر وبياناتك"];
+const STEPS = ["الموقع", "المواصفات", "الحالة والملكية", "السعر وبياناتك", "المراجعة"];
+const LAST = STEPS.length - 1;
+// Which review rows belong to which step, so each block on the review screen can jump back to its step.
+const SECTION_KEYS: string[][] = [
+  ["الفئة", "المنطقة", "المجاورة", "البلوك"],
+  ["المساحة", "موقع القطعة", "الاتجاه", "الإطلالة", "عرض الواجهة"],
+  ["المرحلة البنائية", "الاستلام", "مهلة البناء", "تسلسل الملكية", "تفاصيل الحالة", "المرافق"],
+  ["المطلوب", "المدفوع", "ملاحظات"],
+];
 
 type Form = {
   tier: Tier; zone: ZoneId; hood: string; block: string; plot_no: string;
   area: string; pos: string; dir: string; view: string; front_m: string;
-  stage: string; legal: string; grace_months: string; ownership: string; utilities: string;
+  stage: string; legal: string; grace_months: string; ownership: string; ownership_note: string; utilities: string;
   price: number | null; paid: number | null; description: string; seller_name: string; seller_phone: string;
 };
 const initial: Form = {
   tier: "mm", zone: "z455", hood: "", block: "", plot_no: "", area: "", pos: "", dir: "", view: "", front_m: "",
-  stage: "", legal: "", grace_months: "", ownership: "", utilities: "", price: null, paid: null, description: "", seller_name: "", seller_phone: "",
+  stage: "", legal: "", grace_months: "", ownership: "", ownership_note: "", utilities: "", price: null, paid: null, description: "", seller_name: "", seller_phone: "",
 };
 
 export default function SellPage() {
@@ -34,6 +43,7 @@ export default function SellPage() {
   function check(s: number) {
     if (s === 0 && zone.hoods.length && !f.hood.trim()) return "اكتب المجاورة";
     if (s === 1 && !areaOk) return "اكتب المساحة (من 50 لـ 5000 متر)";
+    if (s === 2 && f.ownership === "حالة تفصيلية" && !f.ownership_note.trim()) return "اكتب تفاصيل الحالة";
     if (s === 3) {
       if (!f.price) return "اكتب المطلوب";
       if (f.seller_name.trim().length < 2) return "اكتب اسمك";
@@ -46,7 +56,7 @@ export default function SellPage() {
     const err = check(step);
     setError(err);
     if (err) return;
-    if (step < 3) { setStep(step + 1); window.scrollTo({ top: 0 }); return; }
+    if (step < LAST) { setStep(step + 1); window.scrollTo({ top: 0 }); return; }
     setBusy(true);
     const { data, error } = await supabaseBrowser().rpc("submit_land", {
       p: { ...f, hood: zone.hoods.length ? f.hood : "", grace_months: f.legal === "مستلمة" ? f.grace_months : "" },
@@ -150,6 +160,11 @@ export default function SellPage() {
               {chips("legal", "الاستلام")}
               {f.legal === "مستلمة" && num("grace_months", "فاضل كام شهر في مهلة البناء؟", "", 3)}
               {chips("ownership", "تسلسل الملكية")}
+              {f.ownership === "حالة تفصيلية" && (
+                <label className="field" htmlFor="f_onote">اكتب تفاصيل الحالة *
+                  <textarea id="f_onote" rows={3} maxLength={500} placeholder="مثلًا: الأرض باسم الوالد والبيع بتوكيل من الورثة..." value={f.ownership_note} onChange={(e) => set("ownership_note", e.target.value)} />
+                </label>
+              )}
               {chips("utilities", "المرافق")}
             </>
           )}
@@ -171,13 +186,42 @@ export default function SellPage() {
             </>
           )}
 
+          {step === LAST && <Review f={f} onEdit={(s) => { setError(""); setStep(s); window.scrollTo({ top: 0 }); }} />}
+
           {error && <div className="err" role="alert">{error}</div>}
           <div className="wnav">
-            {step > 0 && <button type="button" className="btn line" onClick={() => { setError(""); setStep(step - 1); }}>رجوع</button>}
-            <button type="submit" className="btn dark" disabled={busy}>{busy ? "بنبعت..." : step === 3 ? "ابعت للمراجعة" : "التالي"}</button>
+            {step > 0 && <button type="button" className="btn line" onClick={() => { setError(""); setStep(step === LAST ? 0 : step - 1); }}>{step === LAST ? "تعديل" : "رجوع"}</button>}
+            <button type="submit" className="btn dark" disabled={busy}>{busy ? "بنبعت..." : step === LAST ? "تأكيد وابعت" : step === LAST - 1 ? "راجع البيانات" : "التالي"}</button>
           </div>
         </form>
       </div>
     </main>
+  );
+}
+
+function Review({ f, onEdit }: { f: Form; onEdit: (step: number) => void }) {
+  const rows = landRows({
+    tier: f.tier, zone: f.zone, hood: zoneOf(f.zone).hoods.length ? f.hood.trim() || null : null, block: f.block || null,
+    area: Number(f.area), pos: f.pos || null, dir: f.dir || null, view: f.view || null, front_m: Number(f.front_m) || null,
+    stage: f.stage || null, legal: f.legal || null, grace_months: f.grace_months ? Number(f.grace_months) : null,
+    ownership: f.ownership || null, ownership_note: f.ownership_note.trim() || null, utilities: f.utilities || null,
+    price: f.price ?? 0, paid: f.paid, description: f.description.trim() || null,
+  });
+  const extra: [string, string][][] = [[["رقم القطعة", f.plot_no]], [], [], [["الاسم", f.seller_name], ["رقم الموبايل", f.seller_phone]]];
+  return (
+    <div className="review">
+      <p className="muted" style={{ margin: 0, fontSize: 14 }}>راجع بيانات أرضك قبل ما تبعت. لو فيه حاجة غلط دوس «تعديل» جنبها.</p>
+      {SECTION_KEYS.map((keys, i) => {
+        const list = [...rows.filter(([k]) => keys.includes(k)), ...extra[i].filter(([, v]) => v)];
+        return (
+          <section className="rv" key={i}>
+            <div className="rv-h"><b>{STEPS[i]}</b><button type="button" className="linkish" onClick={() => onEdit(i)}>تعديل</button></div>
+            {list.length ? (
+              <dl>{list.map(([k, v]) => <div key={k}><dt>{k}</dt><dd className="num">{v}</dd></div>)}</dl>
+            ) : <p className="muted" style={{ margin: 0, fontSize: 13 }}>ما اخترتش حاجة هنا</p>}
+          </section>
+        );
+      })}
+    </div>
   );
 }

@@ -3,6 +3,7 @@ export const SITE = {
   phone: "01040333703",
   whatsapp: "201040333703",
   email: "info@goldenbeit.com",
+  url: "https://sohag.goldenbeit.com",
   facebook: process.env.NEXT_PUBLIC_FACEBOOK_URL || "",
 };
 
@@ -18,8 +19,8 @@ export type Zone = { id: ZoneId; tier: Tier; name: string; short: string; hoods:
 export const ZONES: Zone[] = [
   { id: "z455", tier: "mm", name: "منطقة الـ455 فدان", short: "455 فدان", hoods: range(3, 10) },
   { id: "z214", tier: "mm", name: "منطقة الـ214 فدان", short: "214 فدان", hoods: ["الشمالية", "الجنوبية"] },
-  { id: "ztm", tier: "mm", name: "التوسعات الجنوبية (مميز)", short: "التوسعات (مميز)", hoods: [...range(11, 17), ...range(37, 40)] },
-  { id: "z735", tier: "mt", name: "التوسعات الجنوبية 735 فدان", short: "735 فدان", hoods: range(18, 49) },
+  { id: "ztm", tier: "mm", name: "التوسعات الجنوبية (مميز)", short: "التوسعات / المجاورات", hoods: [...range(11, 17), ...range(37, 40)] },
+  { id: "z735", tier: "mt", name: "التوسعات الجنوبية 735 فدان", short: "التوسعات / 735 فدان", hoods: range(18, 49) },
   { id: "zahy", tier: "mt", name: "الأحياء (الإسكان الاجتماعي)", short: "الأحياء", hoods: [] },
 ];
 export const zoneOf = (id: string) => ZONES.find((z) => z.id === id) ?? ZONES[0];

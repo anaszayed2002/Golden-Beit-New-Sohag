@@ -18,7 +18,7 @@ export default async function Home() {
     <main>
       <section className="top">
         <div className="wrap">
-          <h1>أميز أراضي المجاورات بسوهاج الجديدة</h1>
+          <h1>أميز أراضي المجاورات والأحياء بسوهاج الجديدة</h1>
           <p className="sub">كل أرض معروضة ببياناتها كاملة: مواصفاتها، حالتها، ملكيتها، ومرافقها.</p>
         </div>
       </section>

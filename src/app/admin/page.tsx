@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { useAccount } from "@/lib/useAccount";
 import { PHONE_RE, cleanPhone, fmtFull, fmtShort, normalizeDigits, phoneEmail, placeLabel, tierName, waTo } from "@/lib/site";
 import { STATUS_NAME, type Land, type LandStatus } from "@/lib/types";
+import { landCardText } from "@/lib/landText";
 import { WhatsAppIcon } from "@/components/Icons";
 
 type Private = { seller_name: string; seller_phone: string; plot_no: string | null };
@@ -221,10 +222,12 @@ function Dashboard({ name }: { name: string }) {
           <h3><span className="num code">{x.code}</span><span>{x.area} م² · {placeLabel(x.zone, x.hood)}</span><span className="tag g">{tierName(x.tier)}</span><span className={`tag st-${x.status}`}>{STATUS_NAME[x.status]}</span></h3>
           <p className="sub">المطلوب <b className="num">{fmtFull(x.price)}</b>{x.paid != null && <> · المدفوع <span className="num">{fmtFull(x.paid)}</span></>}{x.block && <> · بلوك {x.block}</>}{p?.plot_no && <> · قطعة <span className="num">{p.plot_no}</span></>} · {date(x.created_at)}</p>
           <p className="sub">{[x.pos, x.dir, x.view, x.front_m ? `واجهة ${x.front_m}م` : "", x.stage, x.legal, x.ownership, x.utilities].filter(Boolean).join(" · ")}</p>
+          {x.ownership === "حالة تفصيلية" && x.ownership_note && <p className="sub"><b>تفاصيل الحالة:</b> {x.ownership_note}</p>}
           {x.description && <p className="sub">{x.description}</p>}
           <p className="seller">صاحب الأرض: <b>{p?.seller_name ?? "—"}</b> · <a className="num" href={p ? `tel:${p.seller_phone}` : undefined}>{p?.seller_phone}</a></p>
         </div>
         <div className="acts">
+          <CopyCard land={x} />
           {p && <a className="btn wa sm" target="_blank" rel="noopener" href={waTo(p.seller_phone, `أهلاً ${p.seller_name}، معاك جولدن بيت بخصوص أرضك ${x.code} (${x.area} م² ${placeLabel(x.zone, x.hood)}).`)}><WhatsAppIcon />صاحب الأرض</a>}
           {x.status === "approved" && <Link className="btn line sm" href={`/land/${x.code}`} target="_blank">الإعلان</Link>}
           {x.status !== "approved" && <button className="btn green sm" disabled={busyId === x.id} onClick={() => update("lands", x.id, "approved")}>{x.status === "pending" ? "وافق وانشر" : "انشر تاني"}</button>}
@@ -330,6 +333,32 @@ function Dashboard({ name }: { name: string }) {
         )}
       </div>
     </main>
+  );
+}
+
+// Copies the land card as tidy lines for WhatsApp. Seller name and phone are left out on purpose.
+function CopyCard({ land }: { land: AdminLand }) {
+  const [state, setState] = useState<"idle" | "done" | "failed">("idle");
+  async function copy() {
+    const text = landCardText(land);
+    try {
+      await navigator.clipboard.writeText(text);
+      setState("done");
+    } catch {
+      // Older browsers: copy through a hidden textarea
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      setState(ok ? "done" : "failed");
+    }
+    setTimeout(() => setState("idle"), 2000);
+  }
+  return (
+    <button type="button" className={`btn sm ${state === "done" ? "green" : "line"}`} onClick={copy}>
+      {state === "done" ? "اتنسخت ✓" : state === "failed" ? "ما اتنسختش" : "نسخ البطاقة"}
+    </button>
   );
 }
 

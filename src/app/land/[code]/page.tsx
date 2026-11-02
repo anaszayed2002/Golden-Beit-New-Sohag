@@ -8,7 +8,7 @@ import { UtilTag } from "@/components/LandCard";
 import { WhatsAppIcon } from "@/components/Icons";
 import { supabaseServer } from "@/lib/supabase";
 import { LAND_COLUMNS, type Land } from "@/lib/types";
-import { fmtFull, fmtShort, hoodLabel, placeLabel, tierName, waLink, zoneOf } from "@/lib/site";
+import { SITE, fmtFull, fmtShort, hoodLabel, placeLabel, tierName, waLink, zoneOf } from "@/lib/site";
 
 export const revalidate = 30;
 
@@ -42,6 +42,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
     `أهلاً جولدن بيت، عايز أستفسر عن الأرض ${l.code}`,
     `${l.area} م² · ${placeLabel(l.zone, l.hood)}${l.block ? ` · بلوك ${l.block}` : ""}`,
     `المطلوب ${fmtShort(l.price)}`,
+    `${SITE.url}/land/${l.code}`,
   ].join("\n");
 
   const steps = ["مالك أصيل", "توكيل 1", "توكيل 2", "توكيل 3+"];
@@ -105,7 +106,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
                       <small>{n === 1 ? "البائع هو صاحب العقد" : `البائع الحالي معاه ${n - 1 === 1 ? "توكيل" : `${n - 1} توكيلات`}`}</small>
                     </>
                   ) : (
-                    <><span className="on">حالة تفصيلية</span><small>فريقنا هيشرحلك الموقف القانوني بالتفصيل</small></>
+                    <><span className="on">حالة تفصيلية</span>{l.ownership_note ? <p className="txt" style={{ width: "100%" }}>{l.ownership_note}</p> : <small>فريقنا هيشرحلك الموقف القانوني بالتفصيل</small>}</>
                   )}
                 </div>
               </section>

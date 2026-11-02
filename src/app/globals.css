@@ -172,7 +172,7 @@ a { color: inherit }
 .panel { border: 1px solid var(--line); border-radius: 22px; padding: 18px; display: grid; gap: 14px; background: var(--paper); position: relative }
 .panel > .x { position: absolute; top: 14px; inset-inline-end: 14px }
 .panel h1 { font-size: 21px; padding-inline-end: 50px }
-.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px }
+.steps { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px }
 .steps div { font-size: 11px; color: var(--muted); text-align: center }
 .steps div i { display: block; height: 4px; border-radius: 9px; background: var(--line); margin-bottom: 4px }
 .steps div.on { color: var(--ink); font-weight: 700 }
@@ -186,6 +186,13 @@ a { color: inherit }
 .you { display: grid; gap: 10px; background: var(--stone); border-radius: 16px; padding: 14px }
 .you b { color: var(--ink) }
 .you > span { font-size: 12px; color: var(--muted); margin-top: -6px }
+.review { display: grid; gap: 10px }
+.rv { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px }
+.rv-h { display: flex; justify-content: space-between; align-items: center; color: var(--ink) }
+.rv dl { margin: 0; display: grid; gap: 4px }
+.rv dl div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; border-top: 1px dashed var(--line); padding-top: 4px }
+.rv dt { color: var(--muted) }
+.rv dd { margin: 0; color: var(--fg); font-weight: 700; text-align: end; min-width: 0; overflow-wrap: anywhere }
 .wnav { display: flex; gap: 8px }
 .wnav .btn { flex: 1 }
 .seg2 { display: grid; grid-template-columns: 1fr 1fr; background: var(--stone); border-radius: 12px; padding: 4px }
