@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useAccount } from "@/lib/useAccount";
 import { PHONE_RE, cleanPhone, fmtFull, fmtShort, phoneEmail, placeLabel, tierName, waTo } from "@/lib/site";
@@ -33,9 +32,8 @@ export default function AdminPage() {
   return <Dashboard name={profile.full_name} />;
 }
 
+// Login only: the single admin account already exists; there is no sign-up anywhere on the site.
 function AdminLogin() {
-  const [isNew, setIsNew] = useState(false);
-  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -44,21 +42,10 @@ function AdminLogin() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (isNew && name.trim().length < 2) return setError("اكتب اسمك");
     if (!PHONE_RE.test(phone)) return setError("رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01");
-    if (password.length < 6) return setError("كلمة السر 6 حروف أو أرقام على الأقل");
+    if (!password) return setError("اكتب كلمة السر");
     setBusy(true);
-    const sb = supabaseBrowser();
-    if (isNew) {
-      const { error: fnError } = await sb.functions.invoke("signup", { body: { name: name.trim(), phone, password } });
-      if (fnError) {
-        let msg = "حصلت مشكلة، جرّب تاني";
-        if (fnError instanceof FunctionsHttpError) { try { msg = (await fnError.context.json()).error || msg; } catch {} }
-        setBusy(false);
-        return setError(msg);
-      }
-    }
-    const { error: signInError } = await sb.auth.signInWithPassword({ email: phoneEmail(phone), password });
+    const { error: signInError } = await supabaseBrowser().auth.signInWithPassword({ email: phoneEmail(phone), password });
     setBusy(false);
     if (signInError) setError("رقم الموبايل أو كلمة السر مش صح");
   }
@@ -68,22 +55,54 @@ function AdminLogin() {
       <div className="wrap wiz">
         <form className="panel" onSubmit={submit} noValidate>
           <h1>دخول الإدارة</h1>
-          <div className="seg2" role="group" aria-label="نوع الدخول">
-            <button type="button" aria-pressed={!isNew} onClick={() => setIsNew(false)}>دخول</button>
-            <button type="button" aria-pressed={isNew} onClick={() => setIsNew(true)}>أول مرة</button>
-          </div>
-          {isNew && <label className="field" htmlFor="adName">الاسم<input id="adName" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" /></label>}
           <label className="field" htmlFor="adPhone">رقم الموبايل
             <input id="adPhone" className="num ltr" inputMode="tel" placeholder="01xxxxxxxxx" value={phone} onChange={(e) => setPhone(cleanPhone(e.target.value))} autoComplete="username" />
           </label>
           <label className="field" htmlFor="adPass">كلمة السر
-            <input id="adPass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isNew ? "new-password" : "current-password"} />
+            <input id="adPass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           </label>
           {error && <div className="err" role="alert">{error}</div>}
-          <button className="btn dark" type="submit" disabled={busy}>{busy ? "لحظة..." : isNew ? "اعمل حساب الإدارة" : "ادخل"}</button>
+          <button className="btn dark" type="submit" disabled={busy}>{busy ? "لحظة..." : "ادخل"}</button>
         </form>
       </div>
     </main>
+  );
+}
+
+function PasswordForm({ onClose }: { onClose: () => void }) {
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (pw.length < 6) return setError("كلمة السر 6 حروف أو أرقام على الأقل");
+    if (pw !== pw2) return setError("الكلمتين مش زي بعض");
+    setBusy(true);
+    const { error } = await supabaseBrowser().auth.updateUser({ password: pw });
+    setBusy(false);
+    if (error) return setError(/same|different/i.test(error.message) ? "دي نفس كلمة السر الحالية" : "ما اتغيرتش، جرّب تاني");
+    setDone(true);
+  }
+
+  return (
+    <form className="panel" onSubmit={submit} noValidate>
+      <h1 style={{ fontSize: 18 }}>تغيير كلمة السر</h1>
+      {done ? <div className="done">اتغيرت. استخدم الجديدة المرة الجاية.</div> : (
+        <div className="two">
+          <label className="field" htmlFor="pw1">كلمة السر الجديدة<input id="pw1" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></label>
+          <label className="field" htmlFor="pw2">اكتبها تاني<input id="pw2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" /></label>
+        </div>
+      )}
+      {error && <div className="err" role="alert">{error}</div>}
+      <div className="wnav">
+        <button type="button" className="btn line" onClick={onClose}>{done ? "قفل" : "إلغاء"}</button>
+        {!done && <button type="submit" className="btn dark" disabled={busy}>{busy ? "لحظة..." : "احفظ"}</button>}
+      </div>
+    </form>
   );
 }
 
@@ -96,6 +115,7 @@ function Dashboard({ name }: { name: string }) {
   const [statusFilter, setStatusFilter] = useState<LandStatus | "all">("approved");
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
+  const [pwOpen, setPwOpen] = useState(false);
 
   const load = useCallback(async () => {
     const sb = supabaseBrowser();
@@ -163,9 +183,11 @@ function Dashboard({ name }: { name: string }) {
           <div><h1>لوحة التحكم</h1><p className="note">أهلاً {name}</p></div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn line sm" onClick={load}>تحديث</button>
+            <button className="btn line sm" onClick={() => setPwOpen((v) => !v)}>كلمة السر</button>
             <button className="btn line sm" onClick={() => supabaseBrowser().auth.signOut()}>خروج</button>
           </div>
         </div>
+        {pwOpen && <PasswordForm onClose={() => setPwOpen(false)} />}
 
         <label className="codebox" htmlFor="codeSearch">
           <span>ابحث بكود الوحدة</span>
