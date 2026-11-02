@@ -106,7 +106,7 @@ export default function Finder({ initialTier, initialItems, initialTotal }: Prop
             {(["mm", "mt"] as Tier[]).map((t) => (
               <button key={t} type="button" aria-pressed={tier === t}
                 onClick={() => { setTier(t); setZone(""); setHood(""); setFilters((f) => ({ ...f, area: [] })); }}>
-                {tierName(t)}<small>{t === "mm" ? "455 و214 فدان والتوسعات" : "735 فدان والأحياء"}</small>
+                {tierName(t)}
               </button>
             ))}
           </div>
