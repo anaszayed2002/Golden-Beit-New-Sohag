@@ -1,5 +1,5 @@
 import { supabaseServer } from "@/lib/supabase";
-import { emptyFilters, searchLands, type SearchQuery } from "@/lib/search";
+import { emptyFilters, emptyRanges, searchLands, type SearchQuery } from "@/lib/search";
 import Finder from "@/components/Finder";
 import type { Tier } from "@/lib/site";
 
@@ -11,7 +11,7 @@ export default async function Home() {
   const { count: mmCount } = await sb.from("lands").select("id", { count: "exact", head: true }).eq("status", "approved").eq("tier", "mm");
   const { count: mtCount } = await sb.from("lands").select("id", { count: "exact", head: true }).eq("status", "approved").eq("tier", "mt");
   const tier: Tier = !mmCount && mtCount ? "mt" : "mm";
-  const query: SearchQuery = { tier, zone: "", hood: "", budget: null, filters: emptyFilters(), sort: "new" };
+  const query: SearchQuery = { tier, zone: "", hood: "", block: "", filters: emptyFilters(), ranges: emptyRanges(), sort: "approved_at.desc" };
   const first = await searchLands(sb, query, 0);
 
   return (

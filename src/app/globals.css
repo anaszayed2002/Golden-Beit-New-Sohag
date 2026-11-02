@@ -122,7 +122,12 @@ a { color: inherit }
 .sheet-b { overflow: auto; padding: 6px 16px 16px }
 .grp { padding-block: 12px; border-bottom: 1px solid var(--line) }
 .grp:last-child { border: 0 }
-.grp h3 { font-size: 14px; margin-bottom: 8px }
+.grp h3 { font-size: 14px; margin-bottom: 8px; display: flex; gap: 6px; align-items: baseline }
+.grp h3 small { font-weight: 400; color: var(--muted); font-size: 12px }
+.rng { display: flex; gap: 8px; align-items: center }
+.rng span { color: var(--muted) }
+.rng-in { border: 1.5px solid var(--line); background: var(--paper); border-radius: 12px; padding: 10px 12px; font-size: 16px; width: 100%; min-width: 0; color: var(--fg) }
+.rng-in:focus { border-color: var(--green); outline: 0 }
 .opts { display: flex; gap: 6px; flex-wrap: wrap }
 .opt { border: 1.5px solid var(--line); background: var(--paper); border-radius: 999px; padding: 7px 13px; font-size: 14px; font-weight: 400; color: var(--fg) }
 .opt[aria-pressed="true"] { border-color: var(--green); background: var(--sage); color: var(--green); font-weight: 700 }

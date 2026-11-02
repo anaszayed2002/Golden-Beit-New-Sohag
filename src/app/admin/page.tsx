@@ -400,7 +400,18 @@ function describe(c: Record<string, unknown>) {
   const parts: string[] = [];
   if (c.tier === "mm" || c.tier === "mt") parts.push(tierName(c.tier));
   if (typeof c.zone === "string" && c.zone) parts.push(placeLabel(c.zone, typeof c.hood === "string" ? c.hood : null));
-  if (typeof c.budget === "number") parts.push("لحد " + fmtShort(c.budget));
+  if (typeof c.budget === "number") parts.push("لحد " + fmtShort(c.budget)); // alerts saved before range filters
+  if (typeof c.block === "string" && c.block) parts.push("بلوك " + c.block);
+  const ranges = (c.ranges ?? {}) as Record<string, { min: number | null; max: number | null }>;
+  const names: Record<string, [string, (n: number) => string]> = {
+    price: ["المطلوب", fmtShort], area: ["المساحة", (n) => `${n} م²`], front_m: ["الواجهة", (n) => `${n} م`],
+    paid: ["المدفوع", fmtShort], grace_months: ["مهلة البناء", (n) => `${n} شهر`],
+  };
+  for (const [k, [t, f]] of Object.entries(names)) {
+    const r = ranges[k];
+    if (!r || (r.min == null && r.max == null)) continue;
+    parts.push(r.min != null && r.max != null ? `${t} ${f(r.min)}–${f(r.max)}` : r.min != null ? `${t} من ${f(r.min)}` : `${t} لحد ${f(r.max!)}`);
+  }
   for (const k of ["area", "pos", "dir", "view", "front", "stage", "legal", "ownership", "utilities"]) {
     const v = c[k];
     if (Array.isArray(v) && v.length) parts.push(k === "area" ? v.map((x) => x + " م²").join("/") : k === "front" ? `واجهة ${v.join("/")}م+` : v.join("/"));
