@@ -76,6 +76,9 @@ a { color: inherit }
 .scroll::-webkit-scrollbar { display: none }
 .pill { flex: none; border: 1.5px solid var(--line); background: var(--paper); border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap }
 .pill[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #fff }
+.place { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.place .field select { padding: 11px 12px; text-overflow: ellipsis }
+.place .field select:disabled { background: var(--stone); color: var(--muted) }
 .row2 { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end }
 .money { display: flex; align-items: center; border: 1.5px solid var(--line); border-radius: 12px; padding: 0 12px; background: var(--paper) }
 .money:focus-within { border-color: var(--green) }
@@ -212,6 +215,18 @@ a { color: inherit }
 .calc b { font-size: 17px }
 .calc small { display: block; font-size: 11px; opacity: .8; font-weight: 400 }
 .calc.neg { background: var(--bad-soft); color: var(--bad) }
+.ms { position: relative; display: grid; gap: 8px }
+.ms-btn { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1.5px solid var(--line); background: var(--paper); border-radius: 12px; padding: 11px 14px; font-size: 16px; font-weight: 400; color: var(--fg); width: 100%; text-align: start }
+.ms-btn[aria-expanded="true"] { border-color: var(--green) }
+.ms-btn svg { width: 18px; height: 18px; color: var(--muted); flex: none }
+.ms-panel { position: absolute; top: 52px; inset-inline: 0; z-index: 30; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 36px -18px rgba(10,48,34,.45); padding: 6px; max-height: 300px; overflow: auto; display: grid }
+.ms-opt { display: flex; gap: 10px; align-items: center; padding: 10px 10px; border-radius: 10px; font-size: 15px; font-weight: 400; color: var(--fg); cursor: pointer }
+.ms-opt:hover { background: var(--stone) }
+.ms-opt input { width: 20px; height: 20px; accent-color: var(--green); flex: none }
+.ms-done { position: sticky; bottom: 0; margin-top: 4px }
+.ms-chips { display: flex; gap: 6px; flex-wrap: wrap }
+.ms-chips button { border: 0; background: var(--sage); color: var(--green); border-radius: 99px; padding: 4px 10px; font-size: 13px; font-weight: 700 }
+.ms-chips button::after { content: " ×" }
 .review { display: grid; gap: 10px }
 .rv { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px }
 .rv-h { display: flex; justify-content: space-between; align-items: center; color: var(--ink) }

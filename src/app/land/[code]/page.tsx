@@ -65,7 +65,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
                 <span className="tag g">{tierName(l.tier)}</span>
                 {l.legal && <span className={`tag ${l.legal === "مستلمة" ? "ok" : "warn"}`}>{l.legal}</span>}
                 {l.stage && <span className="tag plain">{l.stage}</span>}
-                {l.views.map((v) => <span className="tag" key={v}>على {v}</span>)}
+                {l.views.map((v) => <span className="tag" key={v}>{v}</span>)}
               </div>
             </div>
             {sections.slice(0, 3).map((sec) => {

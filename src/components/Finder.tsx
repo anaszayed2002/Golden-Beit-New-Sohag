@@ -17,11 +17,11 @@ import type { Land } from "@/lib/types";
 type Group = { title: string; ranges?: RangeKey[]; chips?: FilterKey[] };
 const GROUPS: Group[] = [
   { title: "السعر", ranges: ["price", "paid", "over_amount", "inst_value", "inst_left", "transfer_fee", "inst_last"] },
-  { title: "القطعة", ranges: ["area", "front_m"], chips: ["area", "pos", "views", "services"] },
+  { title: "القطعة", ranges: ["area", "front_m"], chips: ["area", "pos", "views"] },
   { title: "الحالة", ranges: ["delivery_date", "grace_until"], chips: ["legal", "stage", "build_reached", "floors", "basement", "ownership"] },
 ];
 const CHIP_TITLE: Record<FilterKey, string> = {
-  area: "المساحات المعروضة", pos: "الواجهة", views: "الإطلالة", services: "خدمات قريبة", legal: "الحالة", stage: "المرحلة البنائية",
+  area: "المساحات المعروضة", pos: "الواجهة", views: "التميز الجغرافي والإطلالة", legal: "الحالة", stage: "المرحلة البنائية",
   build_reached: "قيد البناء: وصل لحد", floors: "عدد الأدوار", basement: "البدروم", ownership: "تسلسل الملكية",
 };
 // How each from/to filter is labelled, typed and shown
@@ -43,7 +43,7 @@ type Sheet = { filters: Filters; ranges: Ranges };
 
 const optionsFor = (k: FilterKey, areas: string[]): string[] => (k === "area" ? areas : k === "basement" ? ["فيه بدروم"] : [...OPT[k]]);
 const toggleIn = (f: Filters, k: FilterKey, v: string): Filters => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] });
-const chipLabel = (k: FilterKey, v: string) => (k === "area" ? `${v} م²` : k === "views" ? `على ${v}` : k === "services" ? `قريبة من ${v}` : v);
+const chipLabel = (k: FilterKey, v: string) => (k === "area" ? `${v} م²` : v);
 const isSet = (v: Range["min"]) => v != null && v !== "";
 function fmtRangeValue(k: RangeKey, v: number | string) {
   const i = RANGE_INFO[k];
@@ -155,26 +155,20 @@ export default function Finder({ initialItems, initialTotal }: Props) {
               </button>
             ))}
           </div>
-          <div>
-            <div className="lbl">المنطقة</div>
-            <div className="scroll">
-              <button type="button" className="pill" aria-pressed={!zone} onClick={() => { setZone(""); setHood(""); }}>كل المناطق</button>
-              {zones.map((z) => (
-                <button key={z.id} type="button" className="pill" aria-pressed={zone === z.id} onClick={() => { setZone(z.id); setHood(""); }}>{z.short}</button>
-              ))}
-            </div>
+          <div className="place">
+            <label className="field" htmlFor="fZone">المنطقة
+              <select id="fZone" value={zone} onChange={(e) => { setZone(e.target.value); setHood(""); }}>
+                <option value="">كل المناطق</option>
+                {zones.map((z) => <option key={z.id} value={z.id}>{z.short}</option>)}
+              </select>
+            </label>
+            <label className="field" htmlFor="fHood">المجاورة
+              <select id="fHood" value={hood} onChange={(e) => setHood(e.target.value)} disabled={!curZone || !curZone.hoods.length}>
+                <option value="">{curZone ? (curZone.hoods.length ? "كل المجاورات" : "مفيش مجاورات") : "اختار المنطقة"}</option>
+                {curZone?.hoods.map((h) => <option key={h} value={h}>{hoodLabel(h)}</option>)}
+              </select>
+            </label>
           </div>
-          {curZone && curZone.hoods.length > 0 && (
-            <div>
-              <div className="lbl">المجاورة</div>
-              <div className="scroll">
-                <button type="button" className="pill" aria-pressed={!hood} onClick={() => setHood("")}>الكل</button>
-                {curZone.hoods.map((h) => (
-                  <button key={h} type="button" className="pill" aria-pressed={hood === h} onClick={() => setHood(h)}>{hoodLabel(h)}</button>
-                ))}
-              </div>
-            </div>
-          )}
           <div className="row2">
             <div>
               <div className="lbl">ميزانيتك لحد</div>

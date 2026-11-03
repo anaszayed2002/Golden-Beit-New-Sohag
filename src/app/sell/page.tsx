@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Sketch from "@/components/Sketch";
+import MultiSelect from "@/components/MultiSelect";
 import CloseButton from "@/components/CloseButton";
 import { supabaseBrowser } from "@/lib/supabase";
 import { ALL_HOODS, OPT, PHONE_RE, cleanPhone, decimalOnly, digitsOnly, fmtFull, hoodLabel, hoodZone, parseMoney, tierName } from "@/lib/site";
@@ -13,7 +14,7 @@ const LAST = STEPS.length - 1;
 const BUILT = ["قيد البناء", "مبنى", "مبنى متشطب"];
 
 type Form = {
-  hood: string; plot_no: string; area: string; pos: string; front_m: string; views: string[]; services: string[];
+  hood: string; plot_no: string; area: string; pos: string; front_m: string; views: string[];
   legal: string; delivery_date: string; stage: string; grace_until: string; build_reached: string; floors: string; basement: boolean;
   ownership: string; ownership_note: string;
   price: number | null; paid: number | null; over_amount: number | null;
@@ -21,7 +22,7 @@ type Form = {
   transfer_fee: number | null; pay_other: string; seller_name: string; seller_phone: string;
 };
 const initial: Form = {
-  hood: "", plot_no: "", area: "", pos: "", front_m: "", views: [], services: [],
+  hood: "", plot_no: "", area: "", pos: "", front_m: "", views: [],
   legal: "", delivery_date: "", stage: "", grace_until: "", build_reached: "", floors: "", basement: false,
   ownership: "", ownership_note: "", price: null, paid: null, over_amount: null,
   has_inst: false, inst_value: null, inst_count: "", inst_left: "", inst_first: "", inst_last: "",
@@ -34,7 +35,7 @@ function asCard(f: Form): CardFields {
   const stage = f.legal === "مستلمة" ? f.stage || null : null;
   return {
     tier: ["z455", "z214", "ztm"].includes(zone) ? "mm" : "mt", zone, hood: zone === "zahy" ? null : f.hood || null,
-    area: Number(f.area) || 0, pos: f.pos || null, front_m: Number(f.front_m) || null, views: f.views, services: f.services,
+    area: Number(f.area) || 0, pos: f.pos || null, front_m: Number(f.front_m) || null, views: f.views, services: [],
     legal: f.legal || null, delivery_date: f.legal === "غير مستلمة" ? f.delivery_date || null : null, stage,
     grace_until: stage === "أرض فضاء" || stage === "ذات رخصة" ? f.grace_until || null : null,
     build_reached: stage === "قيد البناء" ? f.build_reached || null : null,
@@ -99,14 +100,6 @@ export default function SellPage() {
           <button key={v} type="button" className="opt" aria-pressed={f[k] === v} onClick={() => set(k, f[k] === v ? "" : v)}>{v}</button>
         ))}
       </div>
-    </div>
-  );
-  const multi = (k: "views" | "services") => (
-    <div className="opts">
-      {OPT[k].map((v) => (
-        <button key={v} type="button" className="opt" aria-pressed={f[k].includes(v)}
-          onClick={() => set(k, f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v])}>{v}</button>
-      ))}
     </div>
   );
   const text = (k: "plot_no" | "inst_count" | "inst_left", label: string, max: number) => (
@@ -185,11 +178,9 @@ export default function SellPage() {
                 <h2>التميز النوعي للقطعة</h2>
                 {chips("pos", "الواجهة")}
                 {dec("front_m", "عرض الواجهة (م)", "مثلًا 12.5", 3)}
-                <div className="field">الإطلالة <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>اختار كل اللي ينطبق</span>{multi("views")}</div>
               </div>
-              <div className="sec">
-                <h2>التميز الجغرافي <small>خدمات قريبة من القطعة</small></h2>
-                {multi("services")}
+              <div className="field">التميز الجغرافي والإطلالة <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>اختار كل اللي ينطبق</span>
+                <MultiSelect id="f_views" options={OPT.views} value={f.views} onChange={(v) => set("views", v)} placeholder="اختار من القايمة" />
               </div>
             </>
           )}

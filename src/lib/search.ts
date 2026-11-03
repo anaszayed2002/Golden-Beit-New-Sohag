@@ -4,11 +4,11 @@ import type { Tier } from "./site";
 
 export const PAGE_SIZE = 24;
 
-// Pick-one-or-more filters (chips). views/services match a land that has any of the picked items.
-export type FilterKey = "area" | "pos" | "views" | "services" | "legal" | "stage" | "build_reached" | "floors" | "basement" | "ownership";
-export const FILTER_KEYS: FilterKey[] = ["area", "pos", "views", "services", "legal", "stage", "build_reached", "floors", "basement", "ownership"];
+// Pick-one-or-more filters (chips). views matches a land that has any of the picked items.
+export type FilterKey = "area" | "pos" | "views" | "legal" | "stage" | "build_reached" | "floors" | "basement" | "ownership";
+export const FILTER_KEYS: FilterKey[] = ["area", "pos", "views", "legal", "stage", "build_reached", "floors", "basement", "ownership"];
 export type Filters = Record<FilterKey, string[]>;
-const ARRAY_KEYS = ["views", "services"] as const;
+const ARRAY_KEYS = ["views"] as const;
 
 // From / to filters on the numbers and dates a seller enters (dates as "YYYY-MM-DD")
 export type RangeKey =

@@ -18,7 +18,7 @@ export default function LandCard({ land: l, inCompare, onCompare }: { land: Land
           {l.legal && <span className={`tag ${l.legal === "مستلمة" ? "ok" : "warn"}`}>{l.legal}</span>}
           {l.stage && <span className="tag plain">{l.stage}{l.floors ? ` · ${l.floors}` : ""}</span>}
           {l.ownership && <span className="tag plain">{l.ownership}</span>}
-          {l.views.slice(0, 2).map((v) => <span className="tag g" key={v}>على {v}</span>)}
+          {l.views.slice(0, 2).map((v) => <span className="tag g" key={v}>{v}</span>)}
         </div>
         <div className="price">
           <div><small>السعر الكلي</small><b className="num">{fmtFull(l.price)}</b></div>
