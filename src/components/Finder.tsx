@@ -40,10 +40,10 @@ function rangeLabel(k: RangeKey, r: { min: number | null; max: number | null }) 
 }
 const setRange = (rs: Ranges, k: RangeKey, side: "min" | "max", v: number | null): Ranges => ({ ...rs, [k]: { ...rs[k], [side]: v } });
 
-type Props = { initialTier: Tier; initialItems: Land[]; initialTotal: number };
+type Props = { initialItems: Land[]; initialTotal: number };
 
-export default function Finder({ initialTier, initialItems, initialTotal }: Props) {
-  const [tier, setTier] = useState<Tier>(initialTier);
+export default function Finder({ initialItems, initialTotal }: Props) {
+  const [tier, setTier] = useState<Tier | "">("");
   const [zone, setZone] = useState("");
   const [hood, setHood] = useState("");
   const [block, setBlock] = useState("");
@@ -82,7 +82,7 @@ export default function Finder({ initialTier, initialItems, initialTotal }: Prop
   }, [key]);
 
   useEffect(() => {
-    supabaseBrowser().rpc("land_areas", { p_tier: tier }).then(({ data }) => setAreas(((data ?? []) as number[]).map(String)));
+    supabaseBrowser().rpc("land_areas", { p_tier: tier || null }).then(({ data }) => setAreas(((data ?? []) as number[]).map(String)));
   }, [tier]);
 
   async function loadMore() {
@@ -113,7 +113,7 @@ export default function Finder({ initialTier, initialItems, initialTotal }: Prop
     return () => document.removeEventListener("keydown", esc);
   }, [draft, alertOpen]);
 
-  const zones = ZONES.filter((z) => z.tier === tier);
+  const zones = ZONES.filter((z) => !tier || z.tier === tier);
   const curZone = zone ? zoneOf(zone) : null;
   const filterCount = FILTER_KEYS.reduce((s, k) => s + filters[k].length, 0)
     + RANGE_KEYS.filter((k) => k !== "price" && (ranges[k].min != null || ranges[k].max != null)).length
@@ -135,10 +135,10 @@ export default function Finder({ initialTier, initialItems, initialTotal }: Prop
       <div className="wrap">
         <div className="finder">
           <div className="seg" role="group" aria-label="الفئة">
-            {(["mm", "mt"] as Tier[]).map((t) => (
-              <button key={t} type="button" aria-pressed={tier === t}
+            {(["", "mm", "mt"] as (Tier | "")[]).map((t) => (
+              <button key={t || "all"} type="button" aria-pressed={tier === t}
                 onClick={() => { setTier(t); setZone(""); setHood(""); setFilters((f) => ({ ...f, area: [] })); }}>
-                {tierName(t)}
+                {t ? tierName(t) : "الكل"}
               </button>
             ))}
           </div>
@@ -181,7 +181,7 @@ export default function Finder({ initialTier, initialItems, initialTotal }: Prop
 
       <section className="wrap">
         <div className="res-h">
-          <h2 className="num">{total ? `${total.toLocaleString("en")} أرض ${tierName(tier)}` : loading ? "بندوّر..." : "مفيش أراضي بالمواصفات دي"}</h2>
+          <h2 className="num">{total ? `${total.toLocaleString("en")} أرض${tier ? " " + tierName(tier) : ""}` : loading ? "بندوّر..." : "مفيش أراضي بالمواصفات دي"}</h2>
           <select aria-label="ترتيب" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             {SORTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
           </select>

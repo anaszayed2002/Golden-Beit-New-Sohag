@@ -8,7 +8,7 @@ import { UtilTag } from "@/components/LandCard";
 import { WhatsAppIcon } from "@/components/Icons";
 import { supabaseServer } from "@/lib/supabase";
 import { LAND_COLUMNS, type Land } from "@/lib/types";
-import { SITE, fmtFull, fmtShort, hoodLabel, placeLabel, tierName, waLink, zoneOf } from "@/lib/site";
+import { SITE, fmtFull, hoodLabel, placeLabel, tierName, waLink, zoneOf } from "@/lib/site";
 
 export const revalidate = 30;
 
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   const res = await getLand(decodeURIComponent((await params).code));
   if (!res) return { title: "الأرض مش موجودة" };
   const l = res.land;
-  return { title: `أرض ${l.area} م² ${placeLabel(l.zone, l.hood)}`, description: `${tierName(l.tier)} · المطلوب ${fmtShort(l.price)}` };
+  return { title: `أرض ${l.area} م² ${placeLabel(l.zone, l.hood)}`, description: `${tierName(l.tier)} · السعر الكلي ${fmtFull(l.price)}` };
 }
 
 const Row = ({ k, v }: { k: string; v: React.ReactNode }) => <div>{k}<b className="num">{v ?? "—"}</b></div>;
@@ -41,7 +41,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
   const waText = [
     `أهلاً جولدن بيت، عايز أستفسر عن الأرض ${l.code}`,
     `${l.area} م² · ${placeLabel(l.zone, l.hood)}${l.block ? ` · بلوك ${l.block}` : ""}`,
-    `المطلوب ${fmtShort(l.price)}`,
+    `السعر الكلي ${fmtFull(l.price)}`,
     `${SITE.url}/land/${l.code}`,
   ].join("\n");
 
@@ -118,7 +118,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
           <aside className="side">
             <div className="box pricebox" id="request">
               <div>
-                <small className="muted">المطلوب</small>
+                <small className="muted">السعر الكلي</small>
                 <div className="big num">{fmtFull(l.price)}</div>
                 {l.paid != null && <div className="muted num" style={{ fontSize: 14 }}>المدفوع {fmtFull(l.paid)}</div>}
                 <div className="muted num" style={{ fontSize: 13 }}>كود الأرض {l.code}</div>
@@ -133,7 +133,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
                   {similar.map((s) => (
                     <Link key={s.id} className="sim" href={`/land/${s.code}`}>
                       <span>{placeLabel(s.zone, s.hood)}</span>
-                      <b className="num">{s.area} م² · {fmtShort(s.price)}</b>
+                      <b className="num">{s.area} م² · {fmtFull(s.price)}</b>
                     </Link>
                   ))}
                 </div>
@@ -143,7 +143,7 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
         </div>
       </div>
       <div className="mbar">
-        <div className="mbar-price"><small>المطلوب</small><b className="num">{fmtShort(l.price)}</b></div>
+        <div className="mbar-price"><small>السعر الكلي</small><b className="num">{fmtFull(l.price)}</b></div>
         <a className="btn green" href="#request">اطلب القطعة</a>
         <a className="btn wa icon" href={waLink(waText)} target="_blank" rel="noopener" aria-label="اسأل على واتساب"><WhatsAppIcon /></a>
       </div>

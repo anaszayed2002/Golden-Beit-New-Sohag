@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Sketch from "./Sketch";
-import { fmtShort, placeLabel } from "@/lib/site";
+import { fmtFull, placeLabel } from "@/lib/site";
 import type { Land } from "@/lib/types";
 
 export function UtilTag({ u }: { u: string | null }) {
@@ -26,7 +26,7 @@ export default function LandCard({ land: l, inCompare, onCompare }: { land: Land
           {l.view && l.view !== "داخلي" && <span className="tag g">على {l.view}</span>}
         </div>
         <div className="price">
-          <div><small>المطلوب</small><b className="num">{fmtShort(l.price)}</b></div>
+          <div><small>السعر الكلي</small><b className="num">{fmtFull(l.price)}</b></div>
           <Link className="btn dark sm" href={`/land/${l.code}`}>تفاصيل</Link>
         </div>
       </div>

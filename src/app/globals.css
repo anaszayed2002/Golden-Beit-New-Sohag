@@ -67,7 +67,7 @@ a { color: inherit }
 .top .sub { text-align: center; color: var(--muted); font-size: 14px; margin: 4px auto 0; max-width: 52ch }
 .finder { background: var(--paper); border-radius: 22px; box-shadow: 0 24px 50px -32px rgba(10,48,34,.5); border: 1px solid var(--line); padding: 14px; display: grid; gap: 12px; max-width: 860px; margin-inline: auto }
 .finder > * { min-width: 0 }
-.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--stone); border-radius: 14px; padding: 4px }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--stone); border-radius: 14px; padding: 4px }
 .seg button { border: 0; background: transparent; border-radius: 11px; padding: 10px; color: var(--muted); font-weight: 800; font-size: 15px }
 .seg button[aria-pressed="true"] { background: var(--ink); color: #fff }
 .seg button small { display: block; font-size: 11px; font-weight: 400; opacity: .8 }

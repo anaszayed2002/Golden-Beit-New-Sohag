@@ -27,7 +27,8 @@ export const SORTS: [Sort, string][] = [
   ["grace_months.asc", "مهلة البناء: الأقل الأول"], ["grace_months.desc", "مهلة البناء: الأطول الأول"],
 ];
 
-export type SearchQuery = { tier: Tier; zone: string; hood: string; block: string; filters: Filters; ranges: Ranges; sort: Sort };
+// tier "" = all units
+export type SearchQuery = { tier: Tier | ""; zone: string; hood: string; block: string; filters: Filters; ranges: Ranges; sort: Sort };
 
 export const emptyFilters = (): Filters => Object.fromEntries(FILTER_KEYS.map((k) => [k, []])) as unknown as Filters;
 export const emptyRanges = (): Ranges => Object.fromEntries(RANGE_KEYS.map((k) => [k, { min: null, max: null }])) as unknown as Ranges;
@@ -35,7 +36,8 @@ export const emptyRanges = (): Ranges => Object.fromEntries(RANGE_KEYS.map((k) =
 // One place builds the search so the list, the count and the server's first page always agree.
 function applyFilters<Q>(q: Q, s: SearchQuery): Q {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let r = (q as any).eq("status", "approved").eq("tier", s.tier);
+  let r = (q as any).eq("status", "approved");
+  if (s.tier) r = r.eq("tier", s.tier);
   if (s.zone) r = r.eq("zone", s.zone);
   if (s.hood) r = r.eq("hood", s.hood);
   if (s.block.trim()) r = r.eq("block", s.block.trim());
