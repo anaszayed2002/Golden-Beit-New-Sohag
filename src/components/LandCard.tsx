@@ -3,7 +3,9 @@ import Sketch from "./Sketch";
 import { fmtFull, placeLabel } from "@/lib/site";
 import type { Land } from "@/lib/types";
 
-export default function LandCard({ land: l, inCompare, onCompare }: { land: Land; inCompare: boolean; onCompare: () => void }) {
+type Props = { land: Land; inCompare: boolean; onCompare: () => void; onCard: () => void };
+
+export default function LandCard({ land: l, inCompare, onCompare, onCard }: Props) {
   const title = [`${l.area} م²`, l.pos].filter(Boolean).join(" · ");
   return (
     <article className="card">
@@ -21,7 +23,10 @@ export default function LandCard({ land: l, inCompare, onCompare }: { land: Land
           {l.views.slice(0, 2).map((v) => <span className="tag g" key={v}>{v}</span>)}
         </div>
         <div className="price">
-          <div><small>السعر الكلي</small><b className="num">{fmtFull(l.price)}</b></div>
+          <small>السعر الكلي</small><b className="num">{fmtFull(l.price)}</b>
+        </div>
+        <div className="card-acts">
+          <button type="button" className="btn line sm" onClick={onCard}>العرض كبطاقة</button>
           <Link className="btn dark sm" href={`/land/${l.code}`}>تفاصيل</Link>
         </div>
       </div>

@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useAccount } from "@/lib/useAccount";
-import { PHONE_RE, cleanPhone, fmtDate, fmtFull, fmtShort, normalizeDigits, phoneEmail, placeLabel, tierName, waTo } from "@/lib/site";
+import { PHONE_RE, cleanPhone, fmtDate, fmtFull, fmtShort, mapUrl, normalizeDigits, phoneEmail, placeLabel, tierName, waTo } from "@/lib/site";
 import { STATUS_NAME, type Land, type LandStatus } from "@/lib/types";
 import { landCardText, landSections } from "@/lib/landText";
 import { WhatsAppIcon } from "@/components/Icons";
 
-type Private = { seller_name: string; seller_phone: string; plot_no: string | null };
+type Private = { seller_name: string; seller_phone: string };
 type AdminLand = Land & { land_private: Private | Private[] | null };
 type ReqStatus = "new" | "contacted" | "done" | "cancelled";
 type Purchase = { id: string; name: string; phone: string; status: ReqStatus; created_at: string; lands: Pick<Land, "code" | "area" | "zone" | "hood" | "price"> | null };
@@ -19,7 +19,7 @@ type Tab = "pending" | "lands" | "requests" | "alerts";
 type Paged<T> = { items: T[]; page: number; more: boolean };
 const ADMIN_PAGE = 50;
 const EMPTY = { items: [], page: 0, more: false };
-const LAND_SELECT = "*, land_private(seller_name,seller_phone,plot_no)";
+const LAND_SELECT = "*, land_private(seller_name,seller_phone)";
 function appendPage<T extends { id: string }>(cur: Paged<T>, rows: T[], page: number): Paged<T> {
   const items = page === 0 ? rows : [...cur.items, ...rows.filter((r) => !cur.items.some((c) => c.id === r.id))];
   return { items, page, more: rows.length === ADMIN_PAGE };
@@ -174,11 +174,12 @@ function Dashboard({ name }: { name: string }) {
   useEffect(() => { loadLands(0); }, [loadLands]);
 
   // Deleting frees the land's code for the next new listing; its purchase requests go with it.
-  async function remove(id: string) {
+  async function remove(id: string, mapPath: string | null) {
     setBusyId(id); setError("");
     const { error } = await supabaseBrowser().from("lands").delete().eq("id", id);
     setBusyId("");
     if (error) return setError("الحذف ما تمش، جرّب تاني");
+    if (mapPath) supabaseBrowser().storage.from("land-maps").remove([mapPath]);
     const drop = <T extends { id: string }>(p: Paged<T>) => ({ ...p, items: p.items.filter((x) => x.id !== id) });
     setLands(drop); setPending(drop);
     setFound((f) => f && f.filter((x) => x.id !== id));
@@ -232,7 +233,8 @@ function Dashboard({ name }: { name: string }) {
       <div className="arow" key={x.id}>
         <div>
           <h3><span className="num code">{x.code}</span><span>{x.area} م² · {placeLabel(x.zone, x.hood)}</span><span className="tag g">{tierName(x.tier)}</span><span className={`tag st-${x.status}`}>{STATUS_NAME[x.status]}</span></h3>
-          <p className="sub">السعر الكلي <b className="num">{fmtFull(x.price)}</b>{p?.plot_no && <> · قطعة <span className="num">{p.plot_no}</span></>} · {date(x.created_at)}</p>
+          <p className="sub">السعر الكلي <b className="num">{fmtFull(x.price)}</b>{x.plot_no && <> · قطعة <span className="num">{x.plot_no}</span></>} · {date(x.created_at)}
+            {x.map_path && <> · <a href={mapUrl(x.map_path)} target="_blank" rel="noopener">صورة الخريطة</a></>}</p>
           {landSections(x).slice(1).map((s) => {
             const rows = s.rows.filter(([k]) => k !== "السعر الكلي");
             return rows.length ? <p className="sub" key={s.title}><b>{s.title}:</b> {rows.map(([k, v]) => `${k} ${v}`).join(" · ")}</p> : null;
@@ -246,7 +248,7 @@ function Dashboard({ name }: { name: string }) {
           {x.status !== "approved" && <button className="btn green sm" disabled={busyId === x.id} onClick={() => update("lands", x.id, "approved")}>{x.status === "pending" ? "وافق وانشر" : "انشر تاني"}</button>}
           {x.status === "approved" && <button className="btn dark sm" disabled={busyId === x.id} onClick={() => update("lands", x.id, "sold")}>اتباعت</button>}
           {x.status === "pending" && <button className="btn danger sm" disabled={busyId === x.id} onClick={() => update("lands", x.id, "rejected")}>ارفض</button>}
-          {x.status !== "pending" && <DeleteButton code={x.code} busy={busyId === x.id} onDelete={() => remove(x.id)} />}
+          {x.status !== "pending" && <DeleteButton code={x.code} busy={busyId === x.id} onDelete={() => remove(x.id, x.map_path)} />}
         </div>
       </div>
     );
@@ -401,7 +403,8 @@ function describe(c: Record<string, unknown>) {
   const parts: string[] = [];
   if (c.tier === "mm" || c.tier === "mt") parts.push(tierName(c.tier));
   if (typeof c.zone === "string" && c.zone) parts.push(placeLabel(c.zone, typeof c.hood === "string" ? c.hood : null));
-  if (typeof c.budget === "number") parts.push("لحد " + fmtShort(c.budget)); // alerts saved before range filters
+  if (typeof c.area_wanted === "number") parts.push(`المساحة ${c.area_wanted} م²`);
+  if (typeof c.budget === "number") parts.push("الميزانية " + fmtShort(c.budget));
   if (typeof c.block === "string" && c.block) parts.push("بلوك " + c.block);
   const ranges = (c.ranges ?? {}) as Record<string, { min: number | string | null; max: number | string | null }>;
   const money = (n: number | string) => fmtShort(Number(n));

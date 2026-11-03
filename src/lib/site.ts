@@ -23,7 +23,23 @@ export const ZONES: Zone[] = [
   { id: "z735", tier: "mt", name: "التوسعات الجنوبية 735 فدان", short: "التوسعات / المجاورات / 735 فدان", hoods: range(18, 49) },
   { id: "zahy", tier: "mt", name: "الأحياء (الإسكان الاجتماعي)", short: "الأحياء", hoods: [] },
 ];
-export const zoneOf = (id: string) => ZONES.find((z) => z.id === id) ?? ZONES[0];
+export const zoneOf = (id: string) => ZONES.find((z) => z.id === id.split(",")[0]) ?? ZONES[0];
+
+// Area dropdown on the home page. With «الكل», areas that share a label (both classes of التوسعات) are one
+// option whose value lists every id ("ztm,z735") and whose neighborhoods are all of theirs.
+export type ZoneOption = { value: string; short: string; hoods: string[] };
+export function zoneOptions(tier: Tier | ""): ZoneOption[] {
+  const out: ZoneOption[] = [];
+  for (const z of ZONES.filter((z) => !tier || z.tier === tier)) {
+    const same = out.find((o) => o.short === z.short);
+    if (!same) { out.push({ value: z.id, short: z.short, hoods: [...z.hoods] }); continue; }
+    same.value += "," + z.id;
+    same.hoods = [...new Set([...same.hoods, ...z.hoods])].sort((a, b) => Number(a) - Number(b));
+  }
+  return out;
+}
+
+export const mapUrl = (path: string) => `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/land-maps/${path}`;
 export const hoodLabel = (h: string | null | undefined) => (!h ? "" : /^\d+$/.test(h) ? "مجاورة " + h : h);
 export const placeLabel = (zone: string, hood: string | null) => [hoodLabel(hood), zoneOf(zone).short].filter(Boolean).join(" · ");
 

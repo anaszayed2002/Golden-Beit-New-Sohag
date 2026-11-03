@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import LandCard from "./LandCard";
+import CardView from "./CardView";
 import { CloseIcon, FilterIcon } from "./Icons";
 import { useCompare } from "@/lib/compare";
 import { supabaseBrowser } from "@/lib/supabase";
-import { OPT, PHONE_RE, ZONES, cleanPhone, decimalOnly, digitsOnly, fmtDate, fmtShort, hoodLabel, parseMoney, tierName, zoneOf, type Tier } from "@/lib/site";
+import { OPT, PHONE_RE, cleanPhone, decimalOnly, digitsOnly, fmtDate, fmtShort, hoodLabel, parseMoney, tierName, zoneOptions, type Tier } from "@/lib/site";
 import {
   FILTER_KEYS, RANGE_KEYS, SORTS, countLands, emptyFilters, emptyRanges, searchLands,
   type FilterKey, type Filters, type Range, type RangeKey, type Ranges, type SearchQuery, type Sort,
@@ -75,6 +76,9 @@ export default function Finder({ initialItems, initialTotal }: Props) {
   const [draft, setDraft] = useState<Sheet | null>(null);
   const [draftCount, setDraftCount] = useState<number | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
+  const [cardOf, setCardOf] = useState<Land | null>(null);
+  // Zoom: small cards (2 a row on phones) or big ones (1 a row). Remembered on this device.
+  const [big, setBig] = useState(false);
   const compare = useCompare();
   const firstRun = useRef(true);
   const reqId = useRef(0);
@@ -129,8 +133,17 @@ export default function Finder({ initialItems, initialTotal }: Props) {
     return () => document.removeEventListener("keydown", esc);
   }, [draft, alertOpen]);
 
-  const zones = ZONES.filter((z) => !tier || z.tier === tier);
-  const curZone = zone ? zoneOf(zone) : null;
+  useEffect(() => {
+    try { setBig(localStorage.getItem("gb-zoom") === "big"); } catch {}
+  }, []);
+  const zoom = (v: boolean) => {
+    setBig(v);
+    try { localStorage.setItem("gb-zoom", v ? "big" : "small"); } catch {}
+  };
+
+  const zones = zoneOptions(tier);
+  const curZone = zones.find((z) => z.value === zone) ?? null;
+  const pickTier = (t: Tier | "") => { setTier(t); setZone(""); setHood(""); setFilters((f) => ({ ...f, area: [] })); };
 
   const active: { key: string; label: string; clear: () => void }[] = [];
   RANGE_KEYS.forEach((k) => {
@@ -147,19 +160,19 @@ export default function Finder({ initialItems, initialTotal }: Props) {
     <>
       <div className="wrap">
         <div className="finder">
-          <div className="seg" role="group" aria-label="الفئة">
-            {(["", "mm", "mt"] as (Tier | "")[]).map((t) => (
-              <button key={t || "all"} type="button" aria-pressed={tier === t}
-                onClick={() => { setTier(t); setZone(""); setHood(""); setFilters((f) => ({ ...f, area: [] })); }}>
-                {t ? tierName(t) : "الكل"}
-              </button>
-            ))}
+          <div className="tiers" role="group" aria-label="الفئة">
+            <button type="button" className="t-all" aria-pressed={tier === ""} onClick={() => pickTier("")}>الكل</button>
+            <div className="t-br">
+              {(["mm", "mt"] as Tier[]).map((t) => (
+                <button key={t} type="button" aria-pressed={tier === t} onClick={() => pickTier(t)}>{tierName(t)}</button>
+              ))}
+            </div>
           </div>
           <div className="place">
             <label className="field" htmlFor="fZone">المنطقة
               <select id="fZone" value={zone} onChange={(e) => { setZone(e.target.value); setHood(""); }}>
                 <option value="">كل المناطق</option>
-                {zones.map((z) => <option key={z.id} value={z.id}>{z.short}</option>)}
+                {zones.map((z) => <option key={z.value} value={z.value}>{z.short}</option>)}
               </select>
             </label>
             <label className="field" htmlFor="fHood">المجاورة
@@ -189,9 +202,15 @@ export default function Finder({ initialItems, initialTotal }: Props) {
       <section className="wrap">
         <div className="res-h">
           <h2 className="num">{total ? `${total.toLocaleString("en")} أرض${tier ? " " + tierName(tier) : ""}` : loading ? "بندوّر..." : "مفيش أراضي بالمواصفات دي"}</h2>
-          <select aria-label="ترتيب" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-            {SORTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-          </select>
+          <div className="res-tools">
+            <div className="zoom" role="group" aria-label="حجم الكروت">
+              <button type="button" aria-label="كروت أصغر" aria-pressed={!big} onClick={() => zoom(false)}>−</button>
+              <button type="button" aria-label="كروت أكبر" aria-pressed={big} onClick={() => zoom(true)}>+</button>
+            </div>
+            <select aria-label="ترتيب" value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+              {SORTS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </div>
         </div>
         {active.length > 0 && (
           <div className="active">
@@ -199,9 +218,9 @@ export default function Finder({ initialItems, initialTotal }: Props) {
           </div>
         )}
         {failed && <div className="err" role="alert" style={{ marginBottom: 12 }}>النتايج ما اتحمّلتش، جرّب تاني.</div>}
-        <div className={`grid${loading && page === 0 ? " dim" : ""}`}>
+        <div className={`grid${big ? " big" : ""}${loading && page === 0 ? " dim" : ""}`}>
           {items.map((l) => (
-            <LandCard key={l.id} land={l} inCompare={compare.has(l.code)} onCompare={() => compare.toggle(l.code)} />
+            <LandCard key={l.id} land={l} inCompare={compare.has(l.code)} onCompare={() => compare.toggle(l.code)} onCard={() => setCardOf(l)} />
           ))}
           {!items.length && !loading && (
             <div className="empty">
@@ -269,6 +288,7 @@ export default function Finder({ initialItems, initialTotal }: Props) {
       )}
 
       {alertOpen && <AlertForm criteria={{ tier, zone, hood, ...filters, ranges }} onClose={() => setAlertOpen(false)} />}
+      {cardOf && <CardView land={cardOf} onClose={() => setCardOf(null)} />}
     </>
   );
 }
@@ -311,6 +331,9 @@ function RangeRow({ k, value, onChange }: { k: RangeKey; value: Range; onChange:
 function AlertForm({ criteria, onClose }: { criteria: Record<string, unknown>; onClose: () => void }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  // Both optional: the area and the budget the buyer has in mind
+  const [area, setArea] = useState("");
+  const [budget, setBudget] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -320,8 +343,12 @@ function AlertForm({ criteria, onClose }: { criteria: Record<string, unknown>; o
     setError("");
     if (name.trim().length < 2) return setError("اكتب اسمك");
     if (!PHONE_RE.test(phone)) return setError("رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01");
+    const wanted = Number(area.replace(/\.$/, ""));
     setBusy(true);
-    const { error } = await supabaseBrowser().from("land_alerts").insert({ name: name.trim(), phone, criteria });
+    const { error } = await supabaseBrowser().from("land_alerts").insert({
+      name: name.trim(), phone,
+      criteria: { ...criteria, ...(wanted ? { area_wanted: wanted } : {}), ...(budget ? { budget } : {}) },
+    });
     setBusy(false);
     if (error) return setError(/too many/.test(error.message) ? "سجلت تنبيهات كتير النهارده من الرقم ده" : "التنبيه ما اتسجلش، جرّب تاني");
     setDone(true);
@@ -340,6 +367,14 @@ function AlertForm({ criteria, onClose }: { criteria: Record<string, unknown>; o
               <label className="field" htmlFor="alPhone">رقم الموبايل (واتساب)
                 <input id="alPhone" className="num ltr" inputMode="tel" placeholder="01xxxxxxxxx" value={phone} onChange={(e) => setPhone(cleanPhone(e.target.value))} autoComplete="tel" />
               </label>
+              <div className="two al-want">
+                <label className="field" htmlFor="alArea">المساحة (م²)
+                  <input id="alArea" className="num" inputMode="decimal" placeholder="اختياري" value={area} onChange={(e) => setArea(decimalOnly(e.target.value, 4))} autoComplete="off" />
+                </label>
+                <label className="field" htmlFor="alBudget">الميزانية (جنيه)
+                  <input id="alBudget" className="num" inputMode="numeric" placeholder="اختياري" value={budget ? budget.toLocaleString("en") : ""} onChange={(e) => setBudget(parseMoney(e.target.value))} autoComplete="off" />
+                </label>
+              </div>
               {error && <div className="err" role="alert">{error}</div>}
             </>
           )}

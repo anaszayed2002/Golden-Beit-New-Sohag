@@ -5,6 +5,7 @@ import Link from "next/link";
 import Sketch from "@/components/Sketch";
 import MultiSelect from "@/components/MultiSelect";
 import CloseButton from "@/components/CloseButton";
+import { CloseIcon } from "@/components/Icons";
 import { supabaseBrowser } from "@/lib/supabase";
 import { ALL_HOODS, OPT, PHONE_RE, cleanPhone, decimalOnly, digitsOnly, fmtFull, hoodLabel, hoodZone, parseMoney, tierName } from "@/lib/site";
 import { landSections, type CardFields } from "@/lib/landText";
@@ -35,6 +36,7 @@ function asCard(f: Form): CardFields {
   const stage = f.legal === "مستلمة" ? f.stage || null : null;
   return {
     tier: ["z455", "z214", "ztm"].includes(zone) ? "mm" : "mt", zone, hood: zone === "zahy" ? null : f.hood || null,
+    plot_no: f.plot_no || null, map_path: null,
     area: Number(f.area) || 0, pos: f.pos || null, front_m: Number(f.front_m) || null, views: f.views, services: [],
     legal: f.legal || null, delivery_date: f.legal === "غير مستلمة" ? f.delivery_date || null : null, stage,
     grace_until: stage === "أرض فضاء" || stage === "ذات رخصة" ? f.grace_until || null : null,
@@ -51,8 +53,28 @@ function asCard(f: Form): CardFields {
   };
 }
 
+// The map photo is shrunk on the phone before upload (long side 1600px, JPEG), so it uploads fast and stays small.
+async function shrink(file: File): Promise<Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error("encode"))), "image/jpeg", 0.85));
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export default function SellPage() {
   const [f, setF] = useState<Form>(initial);
+  const [map, setMap] = useState<{ blob: Blob; url: string } | null>(null);
+  const [example, setExample] = useState(false);
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -66,6 +88,7 @@ export default function SellPage() {
   function check(s: number) {
     if (s === 0 && !zone) return "اختار المجاورة";
     if (s === 1 && !areaOk) return "اكتب المساحة (من 50 لـ 5000 متر)";
+    if (s === 1 && tier === "mm" && Math.floor(area) === 276) return "أراضي المميز مفيش فيها مساحة 276";
     if (s === 1 && f.front_m && !(Number(f.front_m) >= 3 && Number(f.front_m) <= 100)) return "عرض الواجهة لازم يكون بين 3 و100 متر";
     if (s === 2 && !f.legal) return "اختار الحالة";
     if (s === 2 && f.ownership === "حالة تفصيلية" && !f.ownership_note.trim()) return "اكتب تفاصيل الحالة";
@@ -82,10 +105,19 @@ export default function SellPage() {
     if (err) return;
     if (step < LAST) { setStep(step + 1); window.scrollTo({ top: 0 }); return; }
     setBusy(true);
-    const { data, error } = await supabaseBrowser().rpc("submit_land", { p: f });
+    const sb = supabaseBrowser();
+    let map_path: string | null = null;
+    if (map) {
+      const path = `m/${crypto.randomUUID()}.jpg`;
+      const up = await sb.storage.from("land-maps").upload(path, map.blob, { contentType: "image/jpeg" });
+      if (up.error) { setBusy(false); return setError("صورة الخريطة ما اترفعتش، جرّب تاني أو شيلها"); }
+      map_path = path;
+    }
+    const { data, error } = await sb.rpc("submit_land", { p: { ...f, map_path } });
     setBusy(false);
     if (error) {
       if (/too many/.test(error.message)) return setError("بعت إعلانات كتير النهارده من الرقم ده، كلّمنا واتساب");
+      if (/premium 276/.test(error.message)) return setError("أراضي المميز مفيش فيها مساحة 276");
       if (error.code === "23514") return setError("فيه رقم مش منطقي، راجع البيانات من «تعديل»");
       return setError("الإعلان ما اتبعتش، جرّب تاني أو كلّمنا واتساب");
     }
@@ -136,7 +168,7 @@ export default function SellPage() {
             <div className="done">إعلانك كوده <span className="num">{code}</span>. فريق جولدن بيت هيكلمك يراجع البيانات، وبعد الموافقة الأرض هتظهر في النتايج.</div>
             <div className="two">
               <Link className="btn dark" href="/">الأراضي المعروضة</Link>
-              <button type="button" className="btn line" onClick={() => { setF(initial); setStep(0); setCode(""); }}>اعرض أرض تانية</button>
+              <button type="button" className="btn line" onClick={() => { setF(initial); setMap(null); setStep(0); setCode(""); }}>اعرض أرض تانية</button>
             </div>
           </div>
         </div>
@@ -167,7 +199,37 @@ export default function SellPage() {
                 </select>
               </label>
               <div className="fixed"><span>القطعة</span>{tier ? <span className={`tier-tag ${tier}`}>{tierName(tier)}</span> : <span className="muted" style={{ fontSize: 12 }}>بتتحدد لوحدها من المجاورة</span>}</div>
-              {text("plot_no", "رقم القطعة (مش هيظهر للزوار)", 6)}
+              {text("plot_no", "رقم القطعة", 6)}
+              <div className="field">صورة الخريطة وعليها سهم على القطعة <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>اختياري</span>
+                <div className="mapup">
+                  <button type="button" className="mapex" onClick={() => setExample(true)} aria-label="شوف المثال">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/map-example.svg" alt="" />
+                    <span>شوف المثال</span>
+                  </button>
+                  <p>خد صورة (سكرين شوت) من خريطة المجاورة، وارسم سهم على قطعتك زي المثال، وارفعها هنا.</p>
+                </div>
+                {map ? (
+                  <div className="mapprev">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={map.url} alt="صورة الخريطة اللي اخترتها" />
+                    <button type="button" className="btn line sm" onClick={() => { URL.revokeObjectURL(map.url); setMap(null); }}>شيل الصورة</button>
+                  </div>
+                ) : (
+                  <label className="btn line upbtn" htmlFor="f_map">ارفع صورة الخريطة
+                    <input id="f_map" type="file" accept="image/*" hidden onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      try {
+                        const blob = await shrink(file);
+                        setMap({ blob, url: URL.createObjectURL(blob) });
+                        setError("");
+                      } catch { setError("الصورة دي مش مدعومة، جرّب صورة تانية"); }
+                    }} />
+                  </label>
+                )}
+              </div>
             </>
           )}
 
@@ -254,7 +316,8 @@ export default function SellPage() {
             <div className="review">
               <p className="muted" style={{ margin: 0, fontSize: 14 }}>راجع بيانات أرضك قبل ما تبعت. لو فيه حاجة غلط دوس «تعديل» جنبها.</p>
               {landSections(asCard(f)).map((s, i) => {
-                const rows: [string, string][] = i === 0 && f.plot_no ? [...s.rows, ["رقم القطعة", f.plot_no]] : s.rows;
+                const extra: [string, string][] = i === 0 ? [...(f.plot_no ? [["رقم القطعة", f.plot_no]] : []), ...(map ? [["صورة الخريطة", "مرفوعة"]] : [])] as [string, string][] : [];
+                const rows: [string, string][] = [...s.rows, ...extra];
                 return <ReviewBlock key={s.title} title={s.title} rows={rows} onEdit={() => { setError(""); setStep(i); }} />;
               })}
               <ReviewBlock title="بياناتك" rows={[["الاسم", f.seller_name], ["الموبايل", f.seller_phone]]} onEdit={() => { setError(""); setStep(4); }} />
@@ -267,6 +330,16 @@ export default function SellPage() {
             <button type="submit" className="btn dark" disabled={busy}>{busy ? "بنبعت..." : step === LAST ? "تأكيد وابعت" : step === LAST - 1 ? "راجع البيانات" : "التالي"}</button>
           </div>
         </form>
+        {example && (
+          <div className="sheet-bg cv-bg" onClick={() => setExample(false)}>
+            <div className="cv" role="dialog" aria-modal="true" aria-label="مثال صورة الخريطة">
+              <button type="button" className="x" aria-label="إغلاق" onClick={() => setExample(false)}><CloseIcon /></button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <div className="cv-pic"><img src="/map-example.svg" alt="مثال: خريطة المجاورة وسهم أحمر على القطعة" /></div>
+              <p className="cv-note">خريطة المجاورة، وسهم واضح بيشاور على قطعتك. خلّي أرقام القطع والشوارع باينة.</p>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

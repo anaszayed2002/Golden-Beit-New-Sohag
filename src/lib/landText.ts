@@ -44,7 +44,7 @@ export function landSections(l: CardFields): { title: string; rows: Rows }[] {
         ["مهلة البناء", l.grace_months != null && !l.grace_until ? `فاضل ${l.grace_months} شهر` : null],
         ["وصل لحد", l.build_reached],
         ["عدد الأدوار", l.floors],
-        ["بدروم", built && l.basement != null ? (l.basement ? "أيوه" : "لأ") : null],
+        ["بدروم", built && l.basement ? "فيه بدروم" : null],
         ["تسلسل الملكية", l.ownership],
         ["تفاصيل الحالة", l.ownership === "حالة تفصيلية" ? l.ownership_note : null],
       ]),

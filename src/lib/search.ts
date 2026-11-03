@@ -44,7 +44,7 @@ function applyFilters<Q>(q: Q, s: SearchQuery): Q {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let r = (q as any).eq("status", "approved");
   if (s.tier) r = r.eq("tier", s.tier);
-  if (s.zone) r = r.eq("zone", s.zone);
+  if (s.zone) r = r.in("zone", s.zone.split(","));
   if (s.hood) r = r.eq("hood", s.hood);
   const f = s.filters;
   if (f.area.length) r = r.in("area", f.area.map(Number));

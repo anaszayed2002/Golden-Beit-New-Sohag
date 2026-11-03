@@ -15,6 +15,8 @@ export type Land = {
   tier: Tier;
   zone: ZoneId;
   hood: string | null;
+  plot_no: string | null;
+  map_path: string | null;
   area: number;
   pos: string | null;
   front_m: number | null;
@@ -51,7 +53,7 @@ export type Land = {
 };
 
 export const LAND_COLUMNS =
-  "id,code,tier,zone,hood,area,pos,front_m,views,services,legal,delivery_date,stage,grace_until,build_reached,floors,basement,ownership,ownership_note,price,paid,over_amount,inst_value,inst_count,inst_left,inst_first,inst_last,transfer_fee,pay_other,block,dir,utilities,grace_months,description,status,created_at,approved_at";
+  "id,code,tier,zone,hood,plot_no,map_path,area,pos,front_m,views,services,legal,delivery_date,stage,grace_until,build_reached,floors,basement,ownership,ownership_note,price,paid,over_amount,inst_value,inst_count,inst_left,inst_first,inst_last,transfer_fee,pay_other,block,dir,utilities,grace_months,description,status,created_at,approved_at";
 
 // Payment figures, exactly as agreed with the client
 export const dueNow = (l: Pick<Land, "paid" | "over_amount">) => (l.paid ?? 0) + (l.over_amount ?? 0); // المدفوع + الأوفر
