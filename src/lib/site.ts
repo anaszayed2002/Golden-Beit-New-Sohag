@@ -68,7 +68,13 @@ export function hoodZone(h: string): ZoneId | null {
   return null;
 }
 
-export const fmtDate = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString("ar-EG", { day: "numeric", month: "long", year: "numeric" }) : "");
+// "YYYY-MM-DD" one year later (29 Feb → 28 Feb, same as the database)
+export function yearAfter(d: string) {
+  const [y, m, day] = d.split("-");
+  return `${Number(y) + 1}-${m}-${m === "02" && day === "29" ? "28" : day}`;
+}
+
+export const fmtDate =(d: string | null | undefined) => (d ? new Date(d).toLocaleDateString("ar-EG", { day: "numeric", month: "long", year: "numeric" }) : "");
 
 export const PHONE_RE = /^01[0125][0-9]{8}$/;
 // Admin accounts only. Supabase Auth needs an email, so each phone maps to a fixed synthetic one.

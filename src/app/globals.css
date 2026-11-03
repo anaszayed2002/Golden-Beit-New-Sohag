@@ -216,7 +216,9 @@ a { color: inherit }
 .you b { color: var(--ink) }
 .you > span { font-size: 12px; color: var(--muted); margin-top: -6px }
 .fixed { display: flex; justify-content: space-between; align-items: center; background: var(--stone); border-radius: 12px; padding: 10px 14px; font-size: 14px }
-.fixed b { color: var(--ink) }
+.fixed b { color: var(--ink); text-align: end }
+.fixed > span:first-child { white-space: nowrap }
+.fixed { gap: 10px }
 .tier-tag { display: inline-block; border-radius: 99px; padding: 2px 12px; font-weight: 800; font-size: 13px }
 .tier-tag.mm { background: #FBF1D6; color: var(--gold-deep) }
 .tier-tag.mt { background: var(--sage); color: var(--green) }

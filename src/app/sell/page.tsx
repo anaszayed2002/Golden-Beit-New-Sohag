@@ -7,7 +7,7 @@ import MultiSelect from "@/components/MultiSelect";
 import CloseButton from "@/components/CloseButton";
 import { CloseIcon } from "@/components/Icons";
 import { supabaseBrowser } from "@/lib/supabase";
-import { ALL_HOODS, OPT, PHONE_RE, cleanPhone, decimalOnly, digitsOnly, fmtFull, hoodLabel, hoodZone, parseMoney, tierName } from "@/lib/site";
+import { ALL_HOODS, OPT, PHONE_RE, cleanPhone, decimalOnly, digitsOnly, fmtDate, fmtFull, hoodLabel, hoodZone, parseMoney, tierName, yearAfter } from "@/lib/site";
 import { landSections, type CardFields } from "@/lib/landText";
 
 const STEPS = ["المكان", "القطعة", "الحالة", "السعر", "بياناتك", "المراجعة"];
@@ -47,7 +47,9 @@ function asCard(f: Form): CardFields {
     price: f.price ?? 0, paid: f.paid, over_amount: f.over_amount,
     inst_value: f.has_inst ? f.inst_value : null, inst_count: f.has_inst && f.inst_count ? Number(f.inst_count) : null,
     inst_left: f.has_inst && f.inst_left ? Number(f.inst_left) : null,
-    inst_first: f.has_inst ? f.inst_first || null : null, inst_last: f.has_inst ? f.inst_last || null : null,
+    // unreceived: first installment a year after delivery, no last date (same rule as submit_land)
+    inst_first: !f.has_inst ? null : f.legal === "غير مستلمة" ? (f.delivery_date ? yearAfter(f.delivery_date) : null) : f.inst_first || null,
+    inst_last: f.has_inst && f.legal !== "غير مستلمة" ? f.inst_last || null : null,
     transfer_fee: f.transfer_fee, pay_other: f.pay_other.trim() || null,
     block: null, dir: null, utilities: null, grace_months: null, description: null,
   };
@@ -291,7 +293,13 @@ export default function SellPage() {
                   {calc("إجمالي الأقساط", "القسط × العدد", instTotal)}
                   {text("inst_left", "عدد الأقساط المتبقية", 3)}
                   {calc("إجمالي الأقساط المتبقية", "القسط × المتبقي", instLeft)}
-                  <div className="two">{day("inst_first", "موعد أول قسط")}{day("inst_last", "موعد آخر قسط")}</div>
+                  {f.legal === "غير مستلمة" ? (
+                    <div className="fixed"><span>موعد أول قسط</span>
+                      <b>بعد الاستلام بسنة{f.delivery_date ? <span className="num"> ({fmtDate(yearAfter(f.delivery_date))})</span> : ""}</b>
+                    </div>
+                  ) : (
+                    <div className="two">{day("inst_first", "موعد أول قسط")}{day("inst_last", "موعد آخر قسط")}</div>
+                  )}
                 </div>
               )}
               {money("transfer_fee", "قيمة التنازل (اختياري)")}

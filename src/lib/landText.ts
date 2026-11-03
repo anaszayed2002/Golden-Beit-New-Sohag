@@ -62,7 +62,10 @@ export function landSections(l: CardFields): { title: string; rows: Rows }[] {
         ["إجمالي الأقساط", hasInst ? fmtFull(instTotal(l)) : null],
         ["الأقساط المتبقية", l.inst_left != null ? String(l.inst_left) : null],
         ["إجمالي الأقساط المتبقية", l.inst_value != null && l.inst_left != null ? fmtFull(instLeftTotal(l)) : null],
-        ["أول قسط", fmtDate(l.inst_first)],
+        // unreceived land: the first installment is a year after delivery
+        ["أول قسط", l.legal === "غير مستلمة" && (l.inst_value != null || l.inst_count != null)
+          ? "بعد الاستلام بسنة" + (l.inst_first ? ` (${fmtDate(l.inst_first)})` : "")
+          : fmtDate(l.inst_first)],
         ["آخر قسط", fmtDate(l.inst_last)],
         ["قيمة التنازل", l.transfer_fee != null ? fmtFull(l.transfer_fee) : null],
         ["أخرى", l.pay_other],
