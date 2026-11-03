@@ -5,29 +5,50 @@ import Link from "next/link";
 import Sketch from "@/components/Sketch";
 import CloseButton from "@/components/CloseButton";
 import { supabaseBrowser } from "@/lib/supabase";
-import { OPT, PHONE_RE, ZONES, cleanPhone, decimalOnly, digitsOnly, parseMoney, tierName, zoneOf, type Tier, type ZoneId } from "@/lib/site";
-import { landRows } from "@/lib/landText";
+import { ALL_HOODS, OPT, PHONE_RE, cleanPhone, decimalOnly, digitsOnly, fmtFull, hoodLabel, hoodZone, parseMoney, tierName } from "@/lib/site";
+import { landSections, type CardFields } from "@/lib/landText";
 
-const STEPS = ["الموقع", "المواصفات", "الحالة والملكية", "السعر وبياناتك", "المراجعة"];
+const STEPS = ["المكان", "القطعة", "الحالة", "السعر", "بياناتك", "المراجعة"];
 const LAST = STEPS.length - 1;
-// Which review rows belong to which step, so each block on the review screen can jump back to its step.
-const SECTION_KEYS: string[][] = [
-  ["الفئة", "المنطقة", "المجاورة", "البلوك"],
-  ["المساحة", "موقع القطعة", "الاتجاه", "الإطلالة", "عرض الواجهة"],
-  ["المرحلة البنائية", "الاستلام", "مهلة البناء", "تسلسل الملكية", "تفاصيل الحالة", "المرافق"],
-  ["المطلوب", "المدفوع", "ملاحظات"],
-];
+const BUILT = ["قيد البناء", "مبنى", "مبنى متشطب"];
 
 type Form = {
-  tier: Tier; zone: ZoneId; hood: string; block: string; plot_no: string;
-  area: string; pos: string; dir: string; view: string; front_m: string;
-  stage: string; legal: string; grace_months: string; ownership: string; ownership_note: string; utilities: string;
-  price: number | null; paid: number | null; description: string; seller_name: string; seller_phone: string;
+  hood: string; plot_no: string; area: string; pos: string; front_m: string; views: string[]; services: string[];
+  legal: string; delivery_date: string; stage: string; grace_until: string; build_reached: string; floors: string; basement: boolean;
+  ownership: string; ownership_note: string;
+  price: number | null; paid: number | null; over_amount: number | null;
+  has_inst: boolean; inst_value: number | null; inst_count: string; inst_left: string; inst_first: string; inst_last: string;
+  transfer_fee: number | null; pay_other: string; seller_name: string; seller_phone: string;
 };
 const initial: Form = {
-  tier: "mm", zone: "z455", hood: "", block: "", plot_no: "", area: "", pos: "", dir: "", view: "", front_m: "",
-  stage: "", legal: "", grace_months: "", ownership: "", ownership_note: "", utilities: "", price: null, paid: null, description: "", seller_name: "", seller_phone: "",
+  hood: "", plot_no: "", area: "", pos: "", front_m: "", views: [], services: [],
+  legal: "", delivery_date: "", stage: "", grace_until: "", build_reached: "", floors: "", basement: false,
+  ownership: "", ownership_note: "", price: null, paid: null, over_amount: null,
+  has_inst: false, inst_value: null, inst_count: "", inst_left: "", inst_first: "", inst_last: "",
+  transfer_fee: null, pay_other: "", seller_name: "", seller_phone: "",
 };
+
+// The form as a land card, so the review uses the same rules as the land page.
+function asCard(f: Form): CardFields {
+  const zone = hoodZone(f.hood) ?? "z735";
+  const stage = f.legal === "مستلمة" ? f.stage || null : null;
+  return {
+    tier: ["z455", "z214", "ztm"].includes(zone) ? "mm" : "mt", zone, hood: zone === "zahy" ? null : f.hood || null,
+    area: Number(f.area) || 0, pos: f.pos || null, front_m: Number(f.front_m) || null, views: f.views, services: f.services,
+    legal: f.legal || null, delivery_date: f.legal === "غير مستلمة" ? f.delivery_date || null : null, stage,
+    grace_until: stage === "أرض فضاء" || stage === "ذات رخصة" ? f.grace_until || null : null,
+    build_reached: stage === "قيد البناء" ? f.build_reached || null : null,
+    floors: stage === "مبنى" || stage === "مبنى متشطب" ? f.floors || null : null,
+    basement: stage && BUILT.includes(stage) ? f.basement : null,
+    ownership: f.ownership || null, ownership_note: f.ownership === "حالة تفصيلية" ? f.ownership_note.trim() || null : null,
+    price: f.price ?? 0, paid: f.paid, over_amount: f.over_amount,
+    inst_value: f.has_inst ? f.inst_value : null, inst_count: f.has_inst && f.inst_count ? Number(f.inst_count) : null,
+    inst_left: f.has_inst && f.inst_left ? Number(f.inst_left) : null,
+    inst_first: f.has_inst ? f.inst_first || null : null, inst_last: f.has_inst ? f.inst_last || null : null,
+    transfer_fee: f.transfer_fee, pay_other: f.pay_other.trim() || null,
+    block: null, dir: null, utilities: null, grace_months: null, description: null,
+  };
+}
 
 export default function SellPage() {
   const [f, setF] = useState<Form>(initial);
@@ -36,21 +57,21 @@ export default function SellPage() {
   const [error, setError] = useState("");
   const [code, setCode] = useState("");
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((cur) => ({ ...cur, [k]: v }));
-  const zone = zoneOf(f.zone);
+  const zone = hoodZone(f.hood);
+  const tier = zone ? (["z455", "z214", "ztm"].includes(zone) ? "mm" : "mt") : null;
   const area = Number(f.area);
   const areaOk = area >= 50 && area <= 5000;
 
   function check(s: number) {
-    if (s === 0 && zone.hoods.length && !f.hood.trim()) return "اكتب المجاورة";
+    if (s === 0 && !zone) return "اختار المجاورة";
     if (s === 1 && !areaOk) return "اكتب المساحة (من 50 لـ 5000 متر)";
     if (s === 1 && f.front_m && !(Number(f.front_m) >= 3 && Number(f.front_m) <= 100)) return "عرض الواجهة لازم يكون بين 3 و100 متر";
-    if (s === 2 && f.legal === "مستلمة" && f.grace_months && Number(f.grace_months) > 120) return "مهلة البناء لازم تكون 120 شهر أو أقل";
+    if (s === 2 && !f.legal) return "اختار الحالة";
     if (s === 2 && f.ownership === "حالة تفصيلية" && !f.ownership_note.trim()) return "اكتب تفاصيل الحالة";
-    if (s === 3) {
-      if (!f.price) return "اكتب المطلوب";
-      if (f.seller_name.trim().length < 2) return "اكتب اسمك";
-      if (!PHONE_RE.test(f.seller_phone)) return "رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01";
-    }
+    if (s === 3 && !f.price) return "اكتب السعر الكلي";
+    if (s === 3 && f.has_inst && f.inst_left && f.inst_count && Number(f.inst_left) > Number(f.inst_count)) return "الأقساط المتبقية أكتر من عدد الأقساط";
+    if (s === 4 && f.seller_name.trim().length < 2) return "اكتب اسمك";
+    if (s === 4 && !PHONE_RE.test(f.seller_phone)) return "رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01";
     return "";
   }
 
@@ -60,21 +81,19 @@ export default function SellPage() {
     if (err) return;
     if (step < LAST) { setStep(step + 1); window.scrollTo({ top: 0 }); return; }
     setBusy(true);
-    const { data, error } = await supabaseBrowser().rpc("submit_land", {
-      p: { ...f, hood: zone.hoods.length ? f.hood : "", grace_months: f.legal === "مستلمة" ? f.grace_months : "" },
-    });
+    const { data, error } = await supabaseBrowser().rpc("submit_land", { p: f });
     setBusy(false);
     if (error) {
       if (/too many/.test(error.message)) return setError("بعت إعلانات كتير النهارده من الرقم ده، كلّمنا واتساب");
-      if (error.code === "23514") return setError("فيه رقم مش منطقي (المساحة أو عرض الواجهة أو مهلة البناء)، راجعه من «تعديل»");
+      if (error.code === "23514") return setError("فيه رقم مش منطقي، راجع البيانات من «تعديل»");
       return setError("الإعلان ما اتبعتش، جرّب تاني أو كلّمنا واتساب");
     }
     setCode(String(data));
     window.scrollTo({ top: 0 });
   }
 
-  const chips = (k: "pos" | "dir" | "view" | "stage" | "legal" | "ownership" | "utilities", label: string) => (
-    <div className="field">{label}
+  const chips = (k: "pos" | "legal" | "stage" | "build_reached" | "ownership", label: string, required = false) => (
+    <div className="field">{label}{required ? " *" : ""}
       <div className="opts">
         {OPT[k].map((v) => (
           <button key={v} type="button" className="opt" aria-pressed={f[k] === v} onClick={() => set(k, f[k] === v ? "" : v)}>{v}</button>
@@ -82,23 +101,36 @@ export default function SellPage() {
       </div>
     </div>
   );
-  const num = (k: "block" | "plot_no" | "grace_months", label: string, ph = "", max = 4) => (
+  const multi = (k: "views" | "services") => (
+    <div className="opts">
+      {OPT[k].map((v) => (
+        <button key={v} type="button" className="opt" aria-pressed={f[k].includes(v)}
+          onClick={() => set(k, f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v])}>{v}</button>
+      ))}
+    </div>
+  );
+  const text = (k: "plot_no" | "inst_count" | "inst_left", label: string, max: number) => (
     <label className="field" htmlFor={`f_${k}`}>{label}
-      <input id={`f_${k}`} className="num" inputMode="numeric" placeholder={ph} value={f[k]} autoComplete="off"
-        onChange={(e) => set(k, digitsOnly(e.target.value).slice(0, max))} />
+      <input id={`f_${k}`} className="num" inputMode="numeric" value={f[k]} autoComplete="off" onChange={(e) => set(k, digitsOnly(e.target.value).slice(0, max))} />
     </label>
   );
-  const dec = (k: "area" | "front_m", label: string, ph = "", maxInt = 4) => (
+  const dec = (k: "area" | "front_m", label: string, ph: string, maxInt: number) => (
     <label className="field" htmlFor={`f_${k}`}>{label}
-      <input id={`f_${k}`} className="num" inputMode="decimal" placeholder={ph} value={f[k]} autoComplete="off"
-        onChange={(e) => set(k, decimalOnly(e.target.value, maxInt))} />
+      <input id={`f_${k}`} className="num" inputMode="decimal" placeholder={ph} value={f[k]} autoComplete="off" onChange={(e) => set(k, decimalOnly(e.target.value, maxInt))} />
     </label>
   );
-  const money = (k: "price" | "paid", label: string) => (
+  const money = (k: "price" | "paid" | "over_amount" | "inst_value" | "transfer_fee", label: string) => (
     <label className="field" htmlFor={`f_${k}`}>{label}
-      <input id={`f_${k}`} className="num" inputMode="numeric" value={f[k] ? f[k]!.toLocaleString("en") : ""} autoComplete="off"
-        onChange={(e) => set(k, parseMoney(e.target.value))} />
+      <input id={`f_${k}`} className="num" inputMode="numeric" value={f[k] ? f[k]!.toLocaleString("en") : ""} autoComplete="off" onChange={(e) => set(k, parseMoney(e.target.value))} />
     </label>
+  );
+  const day = (k: "delivery_date" | "grace_until" | "inst_first" | "inst_last", label: string) => (
+    <label className="field" htmlFor={`f_${k}`}>{label}
+      <input id={`f_${k}`} type="date" value={f[k]} onChange={(e) => set(k, e.target.value)} />
+    </label>
+  );
+  const calc = (label: string, hint: string, value: number) => (
+    <div className={`calc${value < 0 ? " neg" : ""}`}><span>{label}<small>{hint}</small></span><b className="num">{fmtFull(value)}</b></div>
   );
 
   if (code) {
@@ -119,6 +151,10 @@ export default function SellPage() {
     );
   }
 
+  const due = (f.paid ?? 0) + (f.over_amount ?? 0);
+  const instTotal = (f.inst_value ?? 0) * (Number(f.inst_count) || 0);
+  const instLeft = (f.inst_value ?? 0) * (Number(f.inst_left) || 0);
+
   return (
     <main>
       <div className="wrap wiz">
@@ -126,79 +162,113 @@ export default function SellPage() {
           <CloseButton label="إغلاق" />
           <h1>اعرض أرضك</h1>
           <div className="steps">{STEPS.map((s, i) => <div key={s} className={i <= step ? "on" : ""}><i />{s}</div>)}</div>
-          <div className="prev"><Sketch area={areaOk ? area : f.tier === "mm" ? 500 : 276} pos={f.pos || null} dir={f.dir || null} front={Number(f.front_m) || null} big /></div>
+          {step <= 1 && <div className="prev"><Sketch area={areaOk ? area : tier === "mm" ? 500 : 276} pos={f.pos || null} front={Number(f.front_m) || null} big /></div>}
 
           {step === 0 && (
             <>
-              <div className="field">الفئة
-                <div className="opts">
-                  {(["mm", "mt"] as Tier[]).map((t) => (
-                    <button key={t} type="button" className="opt" aria-pressed={f.tier === t}
-                      onClick={() => setF((c) => ({ ...c, tier: t, zone: ZONES.find((z) => z.tier === t)!.id, hood: "" }))}>{tierName(t)}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="field">المنطقة
-                <div className="opts">
-                  {ZONES.filter((z) => z.tier === f.tier).map((z) => (
-                    <button key={z.id} type="button" className="opt" aria-pressed={f.zone === z.id} onClick={() => setF((c) => ({ ...c, zone: z.id, hood: "" }))}>{z.short}</button>
-                  ))}
-                </div>
-              </div>
-              {zone.hoods.length > 0 && (
-                <label className="field" htmlFor="f_hood">المجاورة
-                  <input id="f_hood" list="hoodList" placeholder="اكتب رقم أو اسم المجاورة" value={f.hood} autoComplete="off"
-                    onChange={(e) => set("hood", e.target.value.slice(0, 40))} />
-                  <datalist id="hoodList">{zone.hoods.map((h) => <option key={h} value={h} />)}</datalist>
-                </label>
-              )}
-              <div className="two">{num("block", "البلوك")}{num("plot_no", "رقم القطعة (مش هيظهر)", "", 6)}</div>
+              <div className="fixed"><span>المدينة</span><b>سوهاج الجديدة</b></div>
+              <label className="field" htmlFor="f_hood">المجاورة *
+                <select id="f_hood" value={f.hood} onChange={(e) => set("hood", e.target.value)}>
+                  <option value="">اختار المجاورة</option>
+                  {ALL_HOODS.map((h) => <option key={h} value={h}>{hoodLabel(h)}</option>)}
+                </select>
+              </label>
+              <div className="fixed"><span>القطعة</span>{tier ? <span className={`tier-tag ${tier}`}>{tierName(tier)}</span> : <span className="muted" style={{ fontSize: 12 }}>بتتحدد لوحدها من المجاورة</span>}</div>
+              {text("plot_no", "رقم القطعة (مش هيظهر للزوار)", 6)}
             </>
           )}
 
           {step === 1 && (
             <>
-              {dec("area", "المساحة (م²)", f.tier === "mm" ? "مثلًا 500" : "مثلًا 276.5")}
-              {chips("pos", "موقع القطعة")}
-              {chips("dir", "الاتجاه")}
-              {chips("view", "الإطلالة")}
-              {dec("front_m", "عرض الواجهة (م)", "مثلًا 12.5", 3)}
+              {dec("area", "المساحة (م²) *", tier === "mm" ? "مثلًا 500" : "مثلًا 276.5", 4)}
+              <div className="sec">
+                <h2>التميز النوعي للقطعة</h2>
+                {chips("pos", "الواجهة")}
+                {dec("front_m", "عرض الواجهة (م)", "مثلًا 12.5", 3)}
+                <div className="field">الإطلالة <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>اختار كل اللي ينطبق</span>{multi("views")}</div>
+              </div>
+              <div className="sec">
+                <h2>التميز الجغرافي <small>خدمات قريبة من القطعة</small></h2>
+                {multi("services")}
+              </div>
             </>
           )}
 
           {step === 2 && (
             <>
-              {chips("stage", "المرحلة البنائية")}
-              {chips("legal", "الاستلام")}
-              {f.legal === "مستلمة" && num("grace_months", "فاضل كام شهر في مهلة البناء؟", "", 3)}
+              {chips("legal", "الحالة", true)}
+              {f.legal === "غير مستلمة" && <div className="sub">{day("delivery_date", "موعد الاستلام")}</div>}
+              {f.legal === "مستلمة" && (
+                <div className="sub">
+                  {chips("stage", "المرحلة البنائية")}
+                  {(f.stage === "أرض فضاء" || f.stage === "ذات رخصة") && day("grace_until", "آخر موعد لمهلة البناء")}
+                  {f.stage === "قيد البناء" && chips("build_reached", "وصل لحد")}
+                  {(f.stage === "مبنى" || f.stage === "مبنى متشطب") && (
+                    <label className="field" htmlFor="f_floors">عدد الأدوار
+                      <select id="f_floors" value={f.floors} onChange={(e) => set("floors", e.target.value)}>
+                        <option value="">اختار</option>
+                        {OPT.floors.map((x) => <option key={x} value={x}>{x}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {BUILT.includes(f.stage) && (
+                    <label className="check"><input type="checkbox" checked={f.basement} onChange={(e) => set("basement", e.target.checked)} />فيه بدروم</label>
+                  )}
+                </div>
+              )}
               {chips("ownership", "تسلسل الملكية")}
               {f.ownership === "حالة تفصيلية" && (
                 <label className="field" htmlFor="f_onote">اكتب تفاصيل الحالة *
                   <textarea id="f_onote" rows={3} maxLength={500} placeholder="مثلًا: الأرض باسم الوالد والبيع بتوكيل من الورثة..." value={f.ownership_note} onChange={(e) => set("ownership_note", e.target.value)} />
                 </label>
               )}
-              {chips("utilities", "المرافق")}
             </>
           )}
 
           {step === 3 && (
             <>
-              <div className="two">{money("price", "المطلوب (جنيه) *")}{money("paid", "المدفوع (جنيه)")}</div>
-              <label className="field" htmlFor="f_desc">ملاحظات
-                <textarea id="f_desc" rows={3} maxLength={1000} value={f.description} onChange={(e) => set("description", e.target.value)} />
+              {money("price", "السعر الكلي (جنيه) *")}
+              <div className="two">{money("paid", "المدفوع")}{money("over_amount", "الأوفر")}</div>
+              {calc("المطلوب دفعه", "المدفوع + الأوفر", due)}
+              {calc("المتبقي", "السعر الكلي − المطلوب دفعه", (f.price ?? 0) - due)}
+              <label className="check"><input type="checkbox" checked={f.has_inst} onChange={(e) => set("has_inst", e.target.checked)} />فيه أقساط</label>
+              {f.has_inst && (
+                <div className="sub">
+                  <div className="two">{money("inst_value", "قيمة القسط")}{text("inst_count", "عدد الأقساط", 3)}</div>
+                  {calc("إجمالي الأقساط", "القسط × العدد", instTotal)}
+                  {text("inst_left", "عدد الأقساط المتبقية", 3)}
+                  {calc("إجمالي الأقساط المتبقية", "القسط × المتبقي", instLeft)}
+                  <div className="two">{day("inst_first", "موعد أول قسط")}{day("inst_last", "موعد آخر قسط")}</div>
+                </div>
+              )}
+              {money("transfer_fee", "قيمة التنازل (اختياري)")}
+              <label className="field" htmlFor="f_other">أخرى
+                <textarea id="f_other" rows={2} maxLength={500} placeholder="أي بند دفع تاني" value={f.pay_other} onChange={(e) => set("pay_other", e.target.value)} />
               </label>
-              <div className="you">
-                <b>بياناتك</b>
-                <span>مش هتظهر في الإعلان. فريقنا بيستخدمها يكلمك بس.</span>
-                <label className="field" htmlFor="f_name">الاسم *<input id="f_name" value={f.seller_name} onChange={(e) => set("seller_name", e.target.value.slice(0, 80))} autoComplete="name" /></label>
-                <label className="field" htmlFor="f_phone">رقم الموبايل *
-                  <input id="f_phone" className="num ltr" inputMode="tel" placeholder="01xxxxxxxxx" value={f.seller_phone} onChange={(e) => set("seller_phone", cleanPhone(e.target.value))} autoComplete="tel" />
-                </label>
-              </div>
             </>
           )}
 
-          {step === LAST && <Review f={f} onEdit={(s) => { setError(""); setStep(s); window.scrollTo({ top: 0 }); }} />}
+          {step === 4 && (
+            <div className="you">
+              <b>بياناتك</b>
+              <span>مش هتظهر في الإعلان. فريقنا بيستخدمها يكلمك بس.</span>
+              <label className="field" htmlFor="f_name">الاسم *<input id="f_name" value={f.seller_name} onChange={(e) => set("seller_name", e.target.value.slice(0, 80))} autoComplete="name" /></label>
+              <label className="field" htmlFor="f_phone">رقم الموبايل *
+                <input id="f_phone" className="num ltr" inputMode="tel" placeholder="01xxxxxxxxx" value={f.seller_phone} onChange={(e) => set("seller_phone", cleanPhone(e.target.value))} autoComplete="tel" />
+              </label>
+            </div>
+          )}
+
+          {step === LAST && (
+            <div className="review">
+              <p className="muted" style={{ margin: 0, fontSize: 14 }}>راجع بيانات أرضك قبل ما تبعت. لو فيه حاجة غلط دوس «تعديل» جنبها.</p>
+              {landSections(asCard(f)).map((s, i) => {
+                const rows: [string, string][] = i === 0 && f.plot_no ? [...s.rows, ["رقم القطعة", f.plot_no]] : s.rows;
+                return <ReviewBlock key={s.title} title={s.title} rows={rows} onEdit={() => { setError(""); setStep(i); }} />;
+              })}
+              <ReviewBlock title="بياناتك" rows={[["الاسم", f.seller_name], ["الموبايل", f.seller_phone]]} onEdit={() => { setError(""); setStep(4); }} />
+            </div>
+          )}
 
           {error && <div className="err" role="alert">{error}</div>}
           <div className="wnav">
@@ -211,29 +281,12 @@ export default function SellPage() {
   );
 }
 
-function Review({ f, onEdit }: { f: Form; onEdit: (step: number) => void }) {
-  const rows = landRows({
-    tier: f.tier, zone: f.zone, hood: zoneOf(f.zone).hoods.length ? f.hood.trim() || null : null, block: f.block || null,
-    area: Number(f.area), pos: f.pos || null, dir: f.dir || null, view: f.view || null, front_m: Number(f.front_m) || null,
-    stage: f.stage || null, legal: f.legal || null, grace_months: f.grace_months ? Number(f.grace_months) : null,
-    ownership: f.ownership || null, ownership_note: f.ownership_note.trim() || null, utilities: f.utilities || null,
-    price: f.price ?? 0, paid: f.paid, description: f.description.trim() || null,
-  });
-  const extra: [string, string][][] = [[["رقم القطعة", f.plot_no]], [], [], [["الاسم", f.seller_name], ["رقم الموبايل", f.seller_phone]]];
+function ReviewBlock({ title, rows, onEdit }: { title: string; rows: [string, string][]; onEdit: () => void }) {
   return (
-    <div className="review">
-      <p className="muted" style={{ margin: 0, fontSize: 14 }}>راجع بيانات أرضك قبل ما تبعت. لو فيه حاجة غلط دوس «تعديل» جنبها.</p>
-      {SECTION_KEYS.map((keys, i) => {
-        const list = [...rows.filter(([k]) => keys.includes(k)), ...extra[i].filter(([, v]) => v)];
-        return (
-          <section className="rv" key={i}>
-            <div className="rv-h"><b>{STEPS[i]}</b><button type="button" className="linkish" onClick={() => onEdit(i)}>تعديل</button></div>
-            {list.length ? (
-              <dl>{list.map(([k, v]) => <div key={k}><dt>{k}</dt><dd className="num">{v}</dd></div>)}</dl>
-            ) : <p className="muted" style={{ margin: 0, fontSize: 13 }}>ما اخترتش حاجة هنا</p>}
-          </section>
-        );
-      })}
-    </div>
+    <section className="rv">
+      <div className="rv-h"><b>{title}</b><button type="button" className="linkish" onClick={onEdit}>تعديل</button></div>
+      {rows.length ? <dl>{rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd className="num">{v}</dd></div>)}</dl>
+        : <p className="muted" style={{ margin: 0, fontSize: 13 }}>ما اخترتش حاجة هنا</p>}
+    </section>
   );
 }

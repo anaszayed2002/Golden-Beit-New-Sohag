@@ -4,10 +4,10 @@ import type { Metadata } from "next";
 import Sketch from "@/components/Sketch";
 import CloseButton from "@/components/CloseButton";
 import PurchaseBox from "@/components/PurchaseBox";
-import { UtilTag } from "@/components/LandCard";
 import { WhatsAppIcon } from "@/components/Icons";
 import { supabaseServer } from "@/lib/supabase";
 import { LAND_COLUMNS, type Land } from "@/lib/types";
+import { landSections } from "@/lib/landText";
 import { SITE, fmtFull, hoodLabel, placeLabel, tierName, waLink, zoneOf } from "@/lib/site";
 
 export const revalidate = 30;
@@ -30,8 +30,6 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   return { title: `أرض ${l.area} م² ${placeLabel(l.zone, l.hood)}`, description: `${tierName(l.tier)} · السعر الكلي ${fmtFull(l.price)}` };
 }
 
-const Row = ({ k, v }: { k: string; v: React.ReactNode }) => <div>{k}<b className="num">{v ?? "—"}</b></div>;
-
 export default async function LandPage({ params }: { params: Promise<{ code: string }> }) {
   const res = await getLand(decodeURIComponent((await params).code));
   if (!res) notFound();
@@ -45,6 +43,8 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
     `${SITE.url}/land/${l.code}`,
   ].join("\n");
 
+  const sections = landSections(l);
+  const payRows = sections[3].rows.filter(([k]) => k !== "السعر الكلي");
   const steps = ["مالك أصيل", "توكيل 1", "توكيل 2", "توكيل 3+"];
   const n = ({ "مالك أصيل": 1, "توكيل واحد": 2, "توكيلين": 3, "أكثر من توكيلين": 4 } as Record<string, number>)[l.ownership ?? ""] ?? 0;
 
@@ -59,41 +59,24 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
           <div className="dt-main">
             <div className="pic"><Sketch area={l.area} pos={l.pos} dir={l.dir} front={l.front_m} big /></div>
             <div>
-              <div className="where">{[z.name, hoodLabel(l.hood), l.block ? `بلوك ${l.block}` : ""].filter(Boolean).join(" · ")}</div>
-              <h1>أرض <span className="num">{l.area}</span> م²{l.pos ? ` ${l.pos}` : ""}{l.dir ? ` ${l.dir}` : ""}</h1>
+              <div className="where">{["سوهاج الجديدة", hoodLabel(l.hood), z.short].filter(Boolean).join(" · ")}</div>
+              <h1>أرض <span className="num">{l.area}</span> م²{l.pos ? ` ${l.pos}` : ""}</h1>
               <div className="chips" style={{ marginTop: 8 }}>
-                <UtilTag u={l.utilities} />
                 <span className="tag g">{tierName(l.tier)}</span>
+                {l.legal && <span className={`tag ${l.legal === "مستلمة" ? "ok" : "warn"}`}>{l.legal}</span>}
+                {l.stage && <span className="tag plain">{l.stage}</span>}
+                {l.views.map((v) => <span className="tag" key={v}>على {v}</span>)}
               </div>
             </div>
-            <section className="box">
-              <h2>الموقع</h2>
-              <div className="kv">
-                <Row k="الفئة" v={tierName(l.tier)} />
-                <Row k="المنطقة" v={z.short} />
-                {l.hood && <Row k="المجاورة" v={hoodLabel(l.hood)} />}
-                <Row k="البلوك" v={l.block} />
-              </div>
-            </section>
-            <section className="box">
-              <h2>مواصفات القطعة</h2>
-              <div className="kv">
-                <Row k="المساحة" v={`${l.area} م²`} />
-                <Row k="موقع القطعة" v={l.pos} />
-                <Row k="الاتجاه" v={l.dir} />
-                <Row k="الإطلالة" v={l.view} />
-                <Row k="عرض الواجهة" v={l.front_m ? `${l.front_m} م` : null} />
-              </div>
-            </section>
-            <section className="box">
-              <h2>الحالة والمرافق</h2>
-              <div className="kv">
-                <Row k="المرحلة البنائية" v={l.stage} />
-                <Row k="الاستلام" v={l.legal} />
-                {l.legal === "مستلمة" && l.grace_months != null && <Row k="مهلة البناء" v={`فاضل ${l.grace_months} شهر`} />}
-                <Row k="المرافق" v={l.utilities} />
-              </div>
-            </section>
+            {sections.slice(0, 3).map((sec) => {
+              const rows = sec.rows.filter(([k]) => k !== "تسلسل الملكية" && k !== "تفاصيل الحالة");
+              return rows.length ? (
+                <section className="box" key={sec.title}>
+                  <h2>{sec.title}</h2>
+                  <div className="kv">{rows.map(([k, v]) => <div key={k}>{k}<b className="num">{v}</b></div>)}</div>
+                </section>
+              ) : null;
+            })}
             {l.ownership && (
               <section className="box">
                 <h2>تسلسل الملكية</h2>
@@ -111,18 +94,17 @@ export default async function LandPage({ params }: { params: Promise<{ code: str
                 </div>
               </section>
             )}
-            {l.description && (
-              <section className="box"><h2>وصف البائع</h2><p className="txt">{l.description}</p></section>
-            )}
           </div>
           <aside className="side">
             <div className="box pricebox" id="request">
               <div>
                 <small className="muted">السعر الكلي</small>
                 <div className="big num">{fmtFull(l.price)}</div>
-                {l.paid != null && <div className="muted num" style={{ fontSize: 14 }}>المدفوع {fmtFull(l.paid)}</div>}
                 <div className="muted num" style={{ fontSize: 13 }}>كود الأرض {l.code}</div>
               </div>
+              {payRows.length > 0 && (
+                <dl className="pay">{payRows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd className="num">{v}</dd></div>)}</dl>
+              )}
               <a className="btn wa" href={waLink(waText)} target="_blank" rel="noopener"><WhatsAppIcon />اسأل على واتساب</a>
               <PurchaseBox landId={l.id} code={l.code} />
             </div>

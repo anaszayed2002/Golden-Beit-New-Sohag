@@ -30,14 +30,29 @@ export const placeLabel = (zone: string, hood: string | null) => [hoodLabel(hood
 // Option lists double as ranking order for the compare table (worst → best where it applies).
 export const OPT = {
   pos: ["واجهة واحدة", "ناصية", "دبل فيس", "تربل فيس"],
-  dir: ["بحري", "قبلي", "شرقي", "غربي"],
-  view: ["حديقة", "خدمات", "شارع رئيسي", "داخلي"],
+  views: ["حديقة", "مسجد", "كنيسة", "مدرسة", "بنك", "باركينج", "شارع", "شارع رئيسي", "نادي", "مول", "خدمات"],
+  services: ["مدرسة", "جامعة", "مستشفى", "صيدلية", "مسجد", "كنيسة", "سوق", "مول", "بنك", "نادي", "موقف مواصلات", "محطة بنزين"],
+  legal: ["غير مستلمة", "مستلمة"],
   stage: ["أرض فضاء", "ذات رخصة", "قيد البناء", "مبنى", "مبنى متشطب"],
-  legal: ["لم تستلم", "مستلمة"],
+  build_reached: ["أساسات فقط", "أرضي", "أول", "ثاني", "ثالث", "رابع"],
+  floors: ["أرضي", "أرضي + 1", "أرضي + 2", "أرضي + 3", "أرضي + 4", "أرضي + 5"],
   ownership: ["مالك أصيل", "توكيل واحد", "توكيلين", "أكثر من توكيلين", "حالة تفصيلية"],
-  utilities: ["غير مرفقة", "قيد الترفيق (أولية)", "قيد الانتهاء من الترفيق", "مرفقة"],
 } as const;
-export const FRONT_MIN = [10, 15, 20];
+
+// Every neighborhood in the sell form; the neighborhood decides the area and the class.
+export const ALL_HOODS = [...range(3, 49), "الشمالية", "الجنوبية", "الأحياء"];
+export function hoodZone(h: string): ZoneId | null {
+  if (h === "الشمالية" || h === "الجنوبية") return "z214";
+  if (h === "الأحياء") return "zahy";
+  if (!/^\d+$/.test(h)) return null;
+  const n = Number(h);
+  if (n >= 3 && n <= 10) return "z455";
+  if ((n >= 11 && n <= 17) || (n >= 37 && n <= 40)) return "ztm";
+  if (n >= 18 && n <= 49) return "z735";
+  return null;
+}
+
+export const fmtDate = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString("ar-EG", { day: "numeric", month: "long", year: "numeric" }) : "");
 
 export const PHONE_RE = /^01[0125][0-9]{8}$/;
 // Admin accounts only. Supabase Auth needs an email, so each phone maps to a fixed synthetic one.

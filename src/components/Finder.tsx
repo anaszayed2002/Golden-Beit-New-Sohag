@@ -6,39 +6,56 @@ import LandCard from "./LandCard";
 import { CloseIcon, FilterIcon } from "./Icons";
 import { useCompare } from "@/lib/compare";
 import { supabaseBrowser } from "@/lib/supabase";
-import { OPT, PHONE_RE, ZONES, cleanPhone, decimalOnly, digitsOnly, fmtShort, hoodLabel, parseMoney, tierName, zoneOf, type Tier } from "@/lib/site";
+import { OPT, PHONE_RE, ZONES, cleanPhone, decimalOnly, digitsOnly, fmtDate, fmtShort, hoodLabel, parseMoney, tierName, zoneOf, type Tier } from "@/lib/site";
 import {
   FILTER_KEYS, RANGE_KEYS, SORTS, countLands, emptyFilters, emptyRanges, searchLands,
-  type FilterKey, type Filters, type RangeKey, type Ranges, type SearchQuery, type Sort,
+  type FilterKey, type Filters, type Range, type RangeKey, type Ranges, type SearchQuery, type Sort,
 } from "@/lib/search";
 import type { Land } from "@/lib/types";
 
-const CHIP_GROUPS: [FilterKey, string][] = [
-  ["area", "المساحة"], ["pos", "موقع القطعة"], ["dir", "الاتجاه"], ["view", "الإطلالة"],
-  ["stage", "المرحلة البنائية"], ["legal", "الاستلام"], ["ownership", "تسلسل الملكية"], ["utilities", "المرافق"],
+// Sheet layout: every field the seller fills has a filter (plot number and contact details excepted).
+type Group = { title: string; ranges?: RangeKey[]; chips?: FilterKey[] };
+const GROUPS: Group[] = [
+  { title: "السعر", ranges: ["price", "paid", "over_amount", "inst_value", "inst_left", "transfer_fee", "inst_last"] },
+  { title: "القطعة", ranges: ["area", "front_m"], chips: ["area", "pos", "views", "services"] },
+  { title: "الحالة", ranges: ["delivery_date", "grace_until"], chips: ["legal", "stage", "build_reached", "floors", "basement", "ownership"] },
 ];
+const CHIP_TITLE: Record<FilterKey, string> = {
+  area: "المساحات المعروضة", pos: "الواجهة", views: "الإطلالة", services: "خدمات قريبة", legal: "الحالة", stage: "المرحلة البنائية",
+  build_reached: "قيد البناء: وصل لحد", floors: "عدد الأدوار", basement: "البدروم", ownership: "تسلسل الملكية",
+};
 // How each from/to filter is labelled, typed and shown
-const RANGE_INFO: Record<RangeKey, { title: string; unit: string; kind: "money" | "decimal" | "int" }> = {
-  price: { title: "المطلوب", unit: "جنيه", kind: "money" },
+const RANGE_INFO: Record<RangeKey, { title: string; unit: string; kind: "money" | "decimal" | "int" | "date" }> = {
+  price: { title: "السعر الكلي", unit: "جنيه", kind: "money" },
+  paid: { title: "المدفوع", unit: "جنيه", kind: "money" },
+  over_amount: { title: "الأوفر", unit: "جنيه", kind: "money" },
+  inst_value: { title: "قيمة القسط", unit: "جنيه", kind: "money" },
+  inst_left: { title: "الأقساط المتبقية", unit: "قسط", kind: "int" },
+  transfer_fee: { title: "قيمة التنازل", unit: "جنيه", kind: "money" },
+  inst_last: { title: "موعد آخر قسط", unit: "", kind: "date" },
   area: { title: "المساحة", unit: "م²", kind: "decimal" },
   front_m: { title: "عرض الواجهة", unit: "م", kind: "decimal" },
-  paid: { title: "المدفوع", unit: "جنيه", kind: "money" },
-  grace_months: { title: "مهلة البناء", unit: "شهر", kind: "int" },
+  delivery_date: { title: "موعد الاستلام", unit: "", kind: "date" },
+  grace_until: { title: "آخر موعد لمهلة البناء", unit: "", kind: "date" },
 };
-const SHEET_RANGES: RangeKey[] = ["price", "area", "front_m", "paid", "grace_months"];
 
-type Sheet = { filters: Filters; ranges: Ranges; block: string };
+type Sheet = { filters: Filters; ranges: Ranges };
 
+const optionsFor = (k: FilterKey, areas: string[]): string[] => (k === "area" ? areas : k === "basement" ? ["فيه بدروم"] : [...OPT[k]]);
 const toggleIn = (f: Filters, k: FilterKey, v: string): Filters => ({ ...f, [k]: f[k].includes(v) ? f[k].filter((x) => x !== v) : [...f[k], v] });
-const chipLabel = (k: FilterKey, v: string) => (k === "area" ? `${v} م²` : v);
-const fmtRangeValue = (k: RangeKey, v: number) => (RANGE_INFO[k].kind === "money" ? fmtShort(v) : `${v} ${RANGE_INFO[k].unit}`);
-function rangeLabel(k: RangeKey, r: { min: number | null; max: number | null }) {
+const chipLabel = (k: FilterKey, v: string) => (k === "area" ? `${v} م²` : k === "views" ? `على ${v}` : k === "services" ? `قريبة من ${v}` : v);
+const isSet = (v: Range["min"]) => v != null && v !== "";
+function fmtRangeValue(k: RangeKey, v: number | string) {
+  const i = RANGE_INFO[k];
+  return i.kind === "money" ? fmtShort(Number(v)) : i.kind === "date" ? fmtDate(String(v)) : `${v} ${i.unit}`;
+}
+function rangeLabel(k: RangeKey, r: Range) {
   const t = RANGE_INFO[k].title;
-  if (r.min != null && r.max != null) return `${t} من ${fmtRangeValue(k, r.min)} لـ ${fmtRangeValue(k, r.max)}`;
-  if (r.min != null) return `${t} من ${fmtRangeValue(k, r.min)}`;
+  if (isSet(r.min) && isSet(r.max)) return `${t} من ${fmtRangeValue(k, r.min!)} لـ ${fmtRangeValue(k, r.max!)}`;
+  if (isSet(r.min)) return `${t} من ${fmtRangeValue(k, r.min!)}`;
   return `${t} لحد ${fmtRangeValue(k, r.max!)}`;
 }
-const setRange = (rs: Ranges, k: RangeKey, side: "min" | "max", v: number | null): Ranges => ({ ...rs, [k]: { ...rs[k], [side]: v } });
+const setRange = (rs: Ranges, k: RangeKey, side: "min" | "max", v: Range["min"]): Ranges => ({ ...rs, [k]: { ...rs[k], [side]: v } });
 
 type Props = { initialItems: Land[]; initialTotal: number };
 
@@ -46,7 +63,6 @@ export default function Finder({ initialItems, initialTotal }: Props) {
   const [tier, setTier] = useState<Tier | "">("");
   const [zone, setZone] = useState("");
   const [hood, setHood] = useState("");
-  const [block, setBlock] = useState("");
   const [sort, setSort] = useState<Sort>("approved_at.desc");
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [ranges, setRanges] = useState<Ranges>(emptyRanges);
@@ -63,7 +79,7 @@ export default function Finder({ initialItems, initialTotal }: Props) {
   const firstRun = useRef(true);
   const reqId = useRef(0);
 
-  const query: SearchQuery = { tier, zone, hood, block, filters, ranges, sort };
+  const query: SearchQuery = { tier, zone, hood, filters, ranges, sort };
   const key = JSON.stringify(query);
 
   // New search whenever the query changes (the server already rendered the first one). Typing waits a moment.
@@ -115,20 +131,17 @@ export default function Finder({ initialItems, initialTotal }: Props) {
 
   const zones = ZONES.filter((z) => !tier || z.tier === tier);
   const curZone = zone ? zoneOf(zone) : null;
-  const filterCount = FILTER_KEYS.reduce((s, k) => s + filters[k].length, 0)
-    + RANGE_KEYS.filter((k) => k !== "price" && (ranges[k].min != null || ranges[k].max != null)).length
-    + (ranges.price.min != null ? 1 : 0) + (block.trim() ? 1 : 0);
-  const optionsFor = (k: FilterKey): string[] => (k === "area" ? areas : [...OPT[k]]);
 
   const active: { key: string; label: string; clear: () => void }[] = [];
   RANGE_KEYS.forEach((k) => {
     const r = ranges[k];
-    if (r.min != null || r.max != null) active.push({ key: "r" + k, label: rangeLabel(k, r), clear: () => setRanges(setRange(setRange(ranges, k, "min", null), k, "max", null)) });
+    if (isSet(r.min) || isSet(r.max)) active.push({ key: "r" + k, label: rangeLabel(k, r), clear: () => setRanges({ ...ranges, [k]: { min: null, max: null } }) });
   });
-  if (block.trim()) active.push({ key: "block", label: `بلوك ${block.trim()}`, clear: () => setBlock("") });
   FILTER_KEYS.forEach((k) => filters[k].forEach((v) => active.push({ key: k + v, label: chipLabel(k, v), clear: () => setFilters(toggleIn(filters, k, v)) })));
+  // The budget box outside the sheet is "السعر الكلي لحد"; it isn't counted on the filter button.
+  const filterCount = active.length - (isSet(ranges.price.max) && !isSet(ranges.price.min) ? 1 : 0);
 
-  const clearAll = () => { setFilters(emptyFilters()); setRanges(emptyRanges()); setBlock(""); };
+  const clearAll = () => { setFilters(emptyFilters()); setRanges(emptyRanges()); };
 
   return (
     <>
@@ -167,12 +180,12 @@ export default function Finder({ initialItems, initialTotal }: Props) {
               <div className="lbl">ميزانيتك لحد</div>
               <label className="money" htmlFor="budget">
                 <input id="budget" className="num" inputMode="numeric" placeholder="اكتب المبلغ" autoComplete="off"
-                  value={ranges.price.max != null ? ranges.price.max.toLocaleString("en") : ""}
+                  value={isSet(ranges.price.max) ? Number(ranges.price.max).toLocaleString("en") : ""}
                   onChange={(e) => setRanges(setRange(ranges, "price", "max", parseMoney(e.target.value)))} />
                 <span>جنيه</span>
               </label>
             </div>
-            <button type="button" className="fbtn" onClick={() => setDraft({ filters: { ...filters }, ranges: { ...ranges }, block })}>
+            <button type="button" className="fbtn" onClick={() => setDraft({ filters: { ...filters }, ranges: { ...ranges } })}>
               <FilterIcon />فلاتر{filterCount > 0 && <i className="num">{filterCount}</i>}
             </button>
           </div>
@@ -225,36 +238,35 @@ export default function Finder({ initialItems, initialTotal }: Props) {
           <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="fTitle">
             <div className="sheet-h"><h2 id="fTitle">الفلاتر</h2><button type="button" className="x" aria-label="إغلاق" onClick={() => setDraft(null)}><CloseIcon /></button></div>
             <div className="sheet-b">
-              {SHEET_RANGES.map((k) => (
-                <RangeRow key={k} k={k} value={draft.ranges[k]}
-                  onChange={(side, v) => setDraft({ ...draft, ranges: setRange(draft.ranges, k, side, v) })} />
+              {GROUPS.map((g) => (
+                <div key={g.title}>
+                  <div className="grp-t">{g.title}</div>
+                  {g.ranges?.map((k) => (
+                    <RangeRow key={k} k={k} value={draft.ranges[k]} onChange={(side, v) => setDraft({ ...draft, ranges: setRange(draft.ranges, k, side, v) })} />
+                  ))}
+                  {g.chips?.map((k) => {
+                    const opts = optionsFor(k, areas);
+                    if (!opts.length) return null;
+                    return (
+                      <div className="grp" key={k}>
+                        <h3>{CHIP_TITLE[k]}</h3>
+                        <div className="opts">
+                          {opts.map((v) => (
+                            <button key={v} type="button" className={`opt${k === "area" ? " num" : ""}`} aria-pressed={draft.filters[k].includes(v)}
+                              onClick={() => setDraft({ ...draft, filters: toggleIn(draft.filters, k, v) })}>
+                              {k === "area" ? `${v} م²` : v}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ))}
-              <div className="grp">
-                <h3>البلوك</h3>
-                <input className="rng-in num" inputMode="numeric" placeholder="رقم البلوك" aria-label="رقم البلوك" value={draft.block}
-                  onChange={(e) => setDraft({ ...draft, block: digitsOnly(e.target.value).slice(0, 6) })} />
-              </div>
-              {CHIP_GROUPS.map(([k, title]) => {
-                const opts = optionsFor(k);
-                if (!opts.length) return null;
-                return (
-                  <div className="grp" key={k}>
-                    <h3>{title}{k === "area" && <small> المساحات المعروضة</small>}</h3>
-                    <div className="opts">
-                      {opts.map((v) => (
-                        <button key={v} type="button" className={`opt${k === "area" ? " num" : ""}`} aria-pressed={draft.filters[k].includes(v)}
-                          onClick={() => setDraft({ ...draft, filters: toggleIn(draft.filters, k, v) })}>
-                          {chipLabel(k, v)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
             </div>
             <div className="sheet-f">
-              <button type="button" className="btn line" onClick={() => setDraft({ filters: emptyFilters(), ranges: emptyRanges(), block: "" })}>مسح الكل</button>
-              <button type="button" className="btn dark num" onClick={() => { setFilters(draft.filters); setRanges(draft.ranges); setBlock(draft.block); setDraft(null); }}>
+              <button type="button" className="btn line" onClick={() => setDraft({ filters: emptyFilters(), ranges: emptyRanges() })}>مسح الكل</button>
+              <button type="button" className="btn dark num" onClick={() => { setFilters(draft.filters); setRanges(draft.ranges); setDraft(null); }}>
                 {draftCount == null ? "اعرض النتايج" : `اعرض ${draftCount.toLocaleString("en")} أرض`}
               </button>
             </div>
@@ -262,16 +274,17 @@ export default function Finder({ initialItems, initialTotal }: Props) {
         </div>
       )}
 
-      {alertOpen && <AlertForm criteria={{ tier, zone, hood, block, ...filters, ranges }} onClose={() => setAlertOpen(false)} />}
+      {alertOpen && <AlertForm criteria={{ tier, zone, hood, ...filters, ranges }} onClose={() => setAlertOpen(false)} />}
     </>
   );
 }
 
-// "من / لحد" inputs for one number the seller enters
-function RangeRow({ k, value, onChange }: { k: RangeKey; value: { min: number | null; max: number | null }; onChange: (side: "min" | "max", v: number | null) => void }) {
+// "من / لحد" inputs for one number or date the seller enters
+function RangeRow({ k, value, onChange }: { k: RangeKey; value: Range; onChange: (side: "min" | "max", v: Range["min"]) => void }) {
   const info = RANGE_INFO[k];
-  const show = (v: number | null) => (v == null ? "" : info.kind === "money" ? v.toLocaleString("en") : String(v));
-  const parse = (raw: string): [string, number | null] => {
+  const show = (v: Range["min"]) => (!isSet(v) ? "" : info.kind === "money" ? Number(v).toLocaleString("en") : String(v));
+  const parse = (raw: string): [string, Range["min"]] => {
+    if (info.kind === "date") return [raw, raw || null];
     if (info.kind === "money") { const n = parseMoney(raw); return [n ? n.toLocaleString("en") : "", n]; }
     if (info.kind === "int") { const d = digitsOnly(raw).slice(0, 3); return [d, d ? Number(d) : null]; }
     const d = decimalOnly(raw, 4);
@@ -288,13 +301,14 @@ function RangeRow({ k, value, onChange }: { k: RangeKey; value: { min: number | 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value.min, value.max]);
   const input = (side: "min" | "max", ph: string) => (
-    <input className="rng-in num" inputMode={info.kind === "decimal" ? "decimal" : "numeric"} placeholder={ph} aria-label={`${info.title} ${ph}`}
-      value={text[side]}
+    <input className="rng-in num" type={info.kind === "date" ? "date" : "text"}
+      inputMode={info.kind === "decimal" ? "decimal" : info.kind === "date" ? undefined : "numeric"}
+      placeholder={ph} aria-label={`${info.title} ${ph}`} value={text[side]}
       onChange={(e) => { const [t, n] = parse(e.target.value); setText((c) => ({ ...c, [side]: t })); onChange(side, n); }} />
   );
   return (
     <div className="grp">
-      <h3>{info.title}<small>{info.unit}</small></h3>
+      <h3>{info.title}{info.unit && <small>{info.unit}</small>}</h3>
       <div className="rng">{input("min", "من")}<span>—</span>{input("max", "لحد")}</div>
     </div>
   );

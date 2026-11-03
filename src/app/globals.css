@@ -122,6 +122,7 @@ a { color: inherit }
 .sheet-b { overflow: auto; padding: 6px 16px 16px }
 .grp { padding-block: 12px; border-bottom: 1px solid var(--line) }
 .grp:last-child { border: 0 }
+.grp-t { margin-top: 10px; padding: 6px 10px; background: var(--ink); color: #fff; border-radius: 10px; font-weight: 800; font-size: 14px }
 .grp h3 { font-size: 14px; margin-bottom: 8px; display: flex; gap: 6px; align-items: baseline }
 .grp h3 small { font-weight: 400; color: var(--muted); font-size: 12px }
 .rng { display: flex; gap: 8px; align-items: center }
@@ -157,6 +158,10 @@ a { color: inherit }
 .txt { margin: 0; white-space: pre-line }
 .side { position: sticky; top: 80px; display: grid; gap: 12px }
 .pricebox .big { font-size: 30px; font-weight: 800; color: var(--ink); line-height: 1.2 }
+.pay { display: grid; gap: 4px; margin: 0; background: var(--stone); border-radius: 12px; padding: 10px 12px }
+.pay div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px }
+.pay dt { color: var(--muted) }
+.pay dd { margin: 0; font-weight: 700; color: var(--ink); text-align: end }
 .buy { display: grid; gap: 10px; border-top: 1px dashed var(--line); padding-top: 12px }
 .buy-h { font-weight: 800; color: var(--ink); font-size: 14px }
 .cmp-link { font-size: 13px; font-weight: 700; color: var(--green); text-align: center }
@@ -192,6 +197,21 @@ a { color: inherit }
 .you { display: grid; gap: 10px; background: var(--stone); border-radius: 16px; padding: 14px }
 .you b { color: var(--ink) }
 .you > span { font-size: 12px; color: var(--muted); margin-top: -6px }
+.fixed { display: flex; justify-content: space-between; align-items: center; background: var(--stone); border-radius: 12px; padding: 10px 14px; font-size: 14px }
+.fixed b { color: var(--ink) }
+.tier-tag { display: inline-block; border-radius: 99px; padding: 2px 12px; font-weight: 800; font-size: 13px }
+.tier-tag.mm { background: #FBF1D6; color: var(--gold-deep) }
+.tier-tag.mt { background: var(--sage); color: var(--green) }
+.sec { display: grid; gap: 12px }
+.sec h2 { font-size: 15px; margin: 0; display: flex; gap: 8px; align-items: baseline }
+.sec h2 small { font-weight: 400; color: var(--muted); font-size: 12px }
+.sub { border-inline-start: 3px solid var(--gold); padding-inline-start: 12px; display: grid; gap: 12px }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--fg); font-weight: 700 }
+.check input { width: 20px; height: 20px; accent-color: var(--green) }
+.calc { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--ok-soft); color: var(--ok); border-radius: 12px; padding: 10px 14px; font-size: 14px }
+.calc b { font-size: 17px }
+.calc small { display: block; font-size: 11px; opacity: .8; font-weight: 400 }
+.calc.neg { background: var(--bad-soft); color: var(--bad) }
 .review { display: grid; gap: 10px }
 .rv { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 8px }
 .rv-h { display: flex; justify-content: space-between; align-items: center; color: var(--ink) }

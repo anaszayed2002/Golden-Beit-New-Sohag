@@ -6,7 +6,7 @@ import CloseButton from "@/components/CloseButton";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useCompare } from "@/lib/compare";
 import { OPT, fmtFull, hoodLabel, zoneOf } from "@/lib/site";
-import { LAND_COLUMNS, type Land } from "@/lib/types";
+import { LAND_COLUMNS, dueNow, remaining, type Land } from "@/lib/types";
 
 type Row = { k: string; show: (l: Land) => React.ReactNode; score?: (l: Land) => number | null };
 const rank = (list: readonly string[], v: string | null) => (v ? list.indexOf(v) : null);
@@ -14,16 +14,18 @@ const rank = (list: readonly string[], v: string | null) => (v ? list.indexOf(v)
 // Higher score wins; a row is only highlighted when the lands differ.
 const ROWS: Row[] = [
   { k: "المكان", show: (l) => <>{hoodLabel(l.hood)}{l.hood && <br />}<small className="muted">{zoneOf(l.zone).short}</small></> },
-  { k: "السعر", show: (l) => fmtFull(l.price), score: (l) => -l.price },
+  { k: "السعر الكلي", show: (l) => fmtFull(l.price), score: (l) => -l.price },
+  { k: "المطلوب دفعه", show: (l) => (l.paid != null || l.over_amount != null ? fmtFull(dueNow(l)) : "—"), score: (l) => (l.paid != null || l.over_amount != null ? -dueNow(l) : null) },
+  { k: "المتبقي", show: (l) => (l.paid != null || l.over_amount != null ? fmtFull(remaining(l)) : "—") },
+  { k: "الأقساط المتبقية", show: (l) => (l.inst_left != null ? `${l.inst_left}${l.inst_value ? ` × ${fmtFull(l.inst_value)}` : ""}` : "—") },
   { k: "المساحة", show: (l) => `${l.area} م²`, score: (l) => l.area },
-  { k: "موقع القطعة", show: (l) => l.pos ?? "—", score: (l) => rank(OPT.pos, l.pos) },
-  { k: "الاتجاه", show: (l) => l.dir ?? "—" },
-  { k: "الإطلالة", show: (l) => l.view ?? "—" },
+  { k: "الواجهة", show: (l) => l.pos ?? "—", score: (l) => rank(OPT.pos, l.pos) },
   { k: "عرض الواجهة", show: (l) => (l.front_m ? `${l.front_m} م` : "—"), score: (l) => l.front_m },
-  { k: "المرحلة البنائية", show: (l) => l.stage ?? "—" },
-  { k: "الاستلام", show: (l) => l.legal ?? "—", score: (l) => (l.legal ? (l.legal === "مستلمة" ? 1 : 0) : null) },
+  { k: "الإطلالة", show: (l) => l.views.join("، ") || "—", score: (l) => l.views.length || null },
+  { k: "خدمات قريبة", show: (l) => l.services.join("، ") || "—", score: (l) => l.services.length || null },
+  { k: "الحالة", show: (l) => l.legal ?? "—", score: (l) => (l.legal ? (l.legal === "مستلمة" ? 1 : 0) : null) },
+  { k: "المرحلة البنائية", show: (l) => [l.stage, l.build_reached && `لحد ${l.build_reached}`, l.floors, l.basement ? "+ بدروم" : null].filter(Boolean).join(" · ") || "—" },
   { k: "الملكية", show: (l) => l.ownership ?? "—", score: (l) => { const r = rank(OPT.ownership, l.ownership); return r == null ? null : -r; } },
-  { k: "المرافق", show: (l) => l.utilities ?? "—", score: (l) => rank(OPT.utilities, l.utilities) },
 ];
 
 function bests(lands: Land[], score?: Row["score"]) {

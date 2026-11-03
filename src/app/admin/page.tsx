@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useAccount } from "@/lib/useAccount";
-import { PHONE_RE, cleanPhone, fmtFull, fmtShort, normalizeDigits, phoneEmail, placeLabel, tierName, waTo } from "@/lib/site";
+import { PHONE_RE, cleanPhone, fmtDate, fmtFull, fmtShort, normalizeDigits, phoneEmail, placeLabel, tierName, waTo } from "@/lib/site";
 import { STATUS_NAME, type Land, type LandStatus } from "@/lib/types";
-import { landCardText } from "@/lib/landText";
+import { landCardText, landSections } from "@/lib/landText";
 import { WhatsAppIcon } from "@/components/Icons";
 
 type Private = { seller_name: string; seller_phone: string; plot_no: string | null };
@@ -232,10 +232,11 @@ function Dashboard({ name }: { name: string }) {
       <div className="arow" key={x.id}>
         <div>
           <h3><span className="num code">{x.code}</span><span>{x.area} م² · {placeLabel(x.zone, x.hood)}</span><span className="tag g">{tierName(x.tier)}</span><span className={`tag st-${x.status}`}>{STATUS_NAME[x.status]}</span></h3>
-          <p className="sub">المطلوب <b className="num">{fmtFull(x.price)}</b>{x.paid != null && <> · المدفوع <span className="num">{fmtFull(x.paid)}</span></>}{x.block && <> · بلوك {x.block}</>}{p?.plot_no && <> · قطعة <span className="num">{p.plot_no}</span></>} · {date(x.created_at)}</p>
-          <p className="sub">{[x.pos, x.dir, x.view, x.front_m ? `واجهة ${x.front_m}م` : "", x.stage, x.legal, x.ownership, x.utilities].filter(Boolean).join(" · ")}</p>
-          {x.ownership === "حالة تفصيلية" && x.ownership_note && <p className="sub"><b>تفاصيل الحالة:</b> {x.ownership_note}</p>}
-          {x.description && <p className="sub">{x.description}</p>}
+          <p className="sub">السعر الكلي <b className="num">{fmtFull(x.price)}</b>{p?.plot_no && <> · قطعة <span className="num">{p.plot_no}</span></>} · {date(x.created_at)}</p>
+          {landSections(x).slice(1).map((s) => {
+            const rows = s.rows.filter(([k]) => k !== "السعر الكلي");
+            return rows.length ? <p className="sub" key={s.title}><b>{s.title}:</b> {rows.map(([k, v]) => `${k} ${v}`).join(" · ")}</p> : null;
+          })}
           <p className="seller">صاحب الأرض: <b>{p?.seller_name ?? "—"}</b> · <a className="num" href={p ? `tel:${p.seller_phone}` : undefined}>{p?.seller_phone}</a></p>
         </div>
         <div className="acts">
@@ -402,17 +403,22 @@ function describe(c: Record<string, unknown>) {
   if (typeof c.zone === "string" && c.zone) parts.push(placeLabel(c.zone, typeof c.hood === "string" ? c.hood : null));
   if (typeof c.budget === "number") parts.push("لحد " + fmtShort(c.budget)); // alerts saved before range filters
   if (typeof c.block === "string" && c.block) parts.push("بلوك " + c.block);
-  const ranges = (c.ranges ?? {}) as Record<string, { min: number | null; max: number | null }>;
-  const names: Record<string, [string, (n: number) => string]> = {
-    price: ["المطلوب", fmtShort], area: ["المساحة", (n) => `${n} م²`], front_m: ["الواجهة", (n) => `${n} م`],
-    paid: ["المدفوع", fmtShort], grace_months: ["مهلة البناء", (n) => `${n} شهر`],
+  const ranges = (c.ranges ?? {}) as Record<string, { min: number | string | null; max: number | string | null }>;
+  const money = (n: number | string) => fmtShort(Number(n));
+  const day = (n: number | string) => fmtDate(String(n));
+  const names: Record<string, [string, (n: number | string) => string]> = {
+    price: ["السعر الكلي", money], paid: ["المدفوع", money], over_amount: ["الأوفر", money], inst_value: ["القسط", money],
+    inst_left: ["الأقساط المتبقية", (n) => `${n}`], transfer_fee: ["التنازل", money], area: ["المساحة", (n) => `${n} م²`],
+    front_m: ["الواجهة", (n) => `${n} م`], delivery_date: ["الاستلام", day], grace_until: ["مهلة البناء", day], inst_last: ["آخر قسط", day],
+    grace_months: ["مهلة البناء", (n) => `${n} شهر`],
   };
+  const has = (v: unknown) => v != null && v !== "";
   for (const [k, [t, f]] of Object.entries(names)) {
     const r = ranges[k];
-    if (!r || (r.min == null && r.max == null)) continue;
-    parts.push(r.min != null && r.max != null ? `${t} ${f(r.min)}–${f(r.max)}` : r.min != null ? `${t} من ${f(r.min)}` : `${t} لحد ${f(r.max!)}`);
+    if (!r || (!has(r.min) && !has(r.max))) continue;
+    parts.push(has(r.min) && has(r.max) ? `${t} ${f(r.min!)}–${f(r.max!)}` : has(r.min) ? `${t} من ${f(r.min!)}` : `${t} لحد ${f(r.max!)}`);
   }
-  for (const k of ["area", "pos", "dir", "view", "front", "stage", "legal", "ownership", "utilities"]) {
+  for (const k of ["area", "pos", "views", "services", "legal", "stage", "build_reached", "floors", "basement", "ownership", "dir", "view", "front", "utilities"]) {
     const v = c[k];
     if (Array.isArray(v) && v.length) parts.push(k === "area" ? v.map((x) => x + " م²").join("/") : k === "front" ? `واجهة ${v.join("/")}م+` : v.join("/"));
   }

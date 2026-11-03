@@ -1,0 +1,239 @@
+<title>نموذج اعرض أرضك</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&display=swap">
+<style>
+/* Same look as the live site: white ground, deep green ink, gold accents. One column, phone first. */
+:root{
+  --ink:#0A3022; --green:#0D5A4B; --gold:#E2B43A; --gold-deep:#A87E14;
+  --paper:#FFFFFF; --stone:#F5F3EE; --sage:#E9EFEB; --line:#E2E0D8; --muted:#6B7570; --fg:#14231D;
+  --ok:#1F7A4D; --ok-soft:#E3F2EA; --bad:#B3261E; --bad-soft:#FBE4E2;
+  --f:"Almarai",Tahoma,"Segoe UI",sans-serif; color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--stone);color:var(--fg);margin:0}
+body{font-family:var(--f);font-size:15px;line-height:1.65;direction:rtl}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mock{font-size:11px;background:var(--gold);color:var(--ink);text-align:center;padding:4px 8px}
+.head{background:var(--ink);color:#fff;padding:10px max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:10px}
+.head img{height:40px}
+.head .n{font-size:12px;font-weight:700;line-height:1.15;direction:ltr;text-align:left}
+.head .n b{display:block;color:var(--gold)}
+.wrap{max-width:620px;margin-inline:auto;padding:14px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:18px;display:grid;gap:16px}
+h1{font-size:21px;margin:0;color:var(--ink)}
+.steps{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:5px}
+.steps div{font-size:10.5px;color:var(--muted);text-align:center;line-height:1.3}
+.steps i{display:block;height:4px;border-radius:9px;background:var(--line);margin-bottom:4px}
+.steps .on{color:var(--ink);font-weight:700}.steps .on i{background:var(--gold)}
+.sec{display:grid;gap:12px}
+.sec h2{font-size:15px;margin:0;color:var(--ink);display:flex;gap:8px;align-items:center}
+.sec h2 small{font-weight:400;color:var(--muted);font-size:12px}
+.field{display:grid;gap:6px;font-size:13px;color:var(--muted);font-weight:700}
+.field input,.field select,.field textarea{border:1.5px solid var(--line);background:var(--paper);border-radius:12px;padding:11px 14px;font-size:16px;color:var(--fg);font-weight:400;width:100%}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green);outline:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opts{display:flex;gap:6px;flex-wrap:wrap}
+.opt{border:1.5px solid var(--line);background:var(--paper);border-radius:999px;padding:8px 13px;font-size:14px;color:var(--fg)}
+.opt[aria-pressed="true"]{border-color:var(--green);background:var(--sage);color:var(--green);font-weight:700}
+.fixed{display:flex;justify-content:space-between;align-items:center;background:var(--stone);border-radius:12px;padding:10px 14px;font-size:14px}
+.fixed b{color:var(--ink)}
+.tier{display:inline-block;border-radius:99px;padding:2px 12px;font-weight:800;font-size:13px}
+.tier.mm{background:#FBF1D6;color:var(--gold-deep)}.tier.mt{background:var(--sage);color:var(--green)}
+.sub{border-inline-start:3px solid var(--gold);padding-inline-start:12px;display:grid;gap:10px}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--fg);font-weight:700}
+.check input{width:20px;height:20px;accent-color:var(--green)}
+.calc{display:flex;justify-content:space-between;align-items:center;background:var(--ok-soft);color:var(--ok);border-radius:12px;padding:10px 14px;font-size:14px}
+.calc b{font-size:17px}
+.calc.neg{background:var(--bad-soft);color:var(--bad)}
+.calc small{display:block;font-size:11px;opacity:.8;font-weight:400}
+.you{background:var(--stone);border-radius:16px;padding:14px;display:grid;gap:10px}
+.you > span{font-size:12px;color:var(--muted)}
+.nav{display:flex;gap:8px}
+.btn{flex:1;border:0;border-radius:12px;padding:13px 16px;font-weight:700;font-size:15px}
+.btn.dark{background:var(--ink);color:#fff}.btn.line{background:var(--paper);border:1px solid var(--line)}
+.rv{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:6px}
+.rv-h{display:flex;justify-content:space-between;align-items:center}
+.rv-h b{color:var(--ink)}.rv-h button{background:none;border:0;color:var(--green);font-weight:800;text-decoration:underline;padding:0}
+.rv div.r{display:flex;justify-content:space-between;gap:12px;font-size:14px;border-top:1px dashed var(--line);padding-top:4px}
+.rv dt{color:var(--muted)}.rv dd{margin:0;font-weight:700;text-align:end;overflow-wrap:anywhere}
+.done{background:var(--ok-soft);color:var(--ok);border-radius:12px;padding:12px 14px;font-weight:700}
+.err{background:var(--bad-soft);color:var(--bad);border-radius:12px;padding:10px 14px;font-size:14px}
+.note{font-size:12px;color:var(--muted);margin:0}
+@media (max-width:420px){.two{grid-template-columns:1fr}}
+</style>
+
+<div class="mock">ماكيت للمراجعة · مش متوصل بالموقع</div>
+<header class="head"><img src="logo-white.png" alt="جولدن بيت"><div class="n">Golden Beit<b>New Sohag</b></div></header>
+
+<main class="wrap">
+  <form class="panel" id="form" novalidate>
+    <h1>اعرض أرضك</h1>
+    <div class="steps" id="steps"></div>
+    <div id="body" style="display:grid;gap:18px"></div>
+    <div class="err" id="err" hidden></div>
+    <div class="nav"><button type="button" class="btn line" id="back">رجوع</button><button type="submit" class="btn dark" id="next">التالي</button></div>
+  </form>
+</main>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const range=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
+
+// Neighborhood decides the class: 3–17 and 37–40 مميز, الشمالية/الجنوبية مميز, 18–36 and 41–49 متوسط, الأحياء متوسط
+const HOODS=[...range(3,49),'الشمالية','الجنوبية','الأحياء'];
+const tierOf=h=>{if(!h)return '';if(h==='الشمالية'||h==='الجنوبية')return 'mm';if(h==='الأحياء')return 'mt';const n=+h;return (n<=17||(n>=37&&n<=40))?'mm':'mt'};
+const hoodLabel=h=>/^\d+$/.test(h)?'مجاورة '+h:h;
+
+const OPT={
+  pos:['واجهة واحدة','ناصية','دبل فيس','تربل فيس'],
+  view:['حديقة','مسجد','كنيسة','مدرسة','بنك','باركينج','شارع','شارع رئيسي','نادي','مول','خدمات'],
+  services:['مدرسة','جامعة','مستشفى','صيدلية','مسجد','كنيسة','سوق','مول','بنك','نادي','موقف مواصلات','محطة بنزين'],
+  legal:['مستلمة','غير مستلمة'],
+  stage:['أرض فضاء','ذات رخصة','قيد البناء','مبنى','مبنى متشطب'],
+  reached:['أساسات فقط','أرضي','أول','ثاني','ثالث','رابع'],
+  floors:['أرضي','أرضي + 1','أرضي + 2','أرضي + 3','أرضي + 4','أرضي + 5'],
+  ownership:['مالك أصيل','توكيل واحد','توكيلين','أكثر من توكيلين','حالة تفصيلية'],
+};
+const STEPS=['المكان','القطعة','الحالة','السعر','بياناتك','المراجعة'];
+
+const F={hood:'',plot_no:'',area:'',pos:'',front_m:'',view:[],services:[],legal:'',delivery_date:'',stage:'',grace_until:'',reached:'',floors:'',basement:false,ownership:'',ownership_note:'',
+  price:null,paid:null,over:null,has_inst:false,inst_value:null,inst_count:'',inst_left:'',inst_first:'',inst_last:'',transfer_fee:null,pay_other:'',name:'',phone:''};
+let step=0,sent=false;
+
+const money=v=>v==null||v===''?'':Number(v).toLocaleString('en');
+const parseMoney=s=>{const n=+String(s).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[^\d]/g,'');return n||null};
+const full=v=>Number(v).toLocaleString('en')+' ج';
+const date=d=>d?new Date(d).toLocaleDateString('ar-EG',{day:'numeric',month:'long',year:'numeric'}):'';
+// Auto numbers, exactly as agreed
+const due=()=>(F.paid||0)+(F.over||0);                       // المطلوب دفعه = المدفوع + الأوفر
+const rest=()=>(F.price||0)-due();                            // المتبقي = السعر الكلي − المطلوب دفعه
+const instTotal=()=>(F.inst_value||0)*(+F.inst_count||0);     // إجمالي الأقساط = القسط × العدد
+const instLeftTotal=()=>(F.inst_value||0)*(+F.inst_left||0);  // إجمالي المتبقي = القسط × الأقساط المتبقية
+
+const chips=(k,multi)=>`<div class="opts">${OPT[k].map(v=>`<button type="button" class="opt" aria-pressed="${multi?F[k].includes(v):F[k]===v}" data-k="${k}" data-v="${esc(v)}" data-m="${multi?1:0}">${v}</button>`).join('')}</div>`;
+const inp=(k,label,o={})=>`<label class="field">${label}<input data-f="${k}" ${o.type?`type="${o.type}"`:''} ${o.mode?`inputmode="${o.mode}"`:''} class="num" placeholder="${o.ph||''}" value="${esc(o.money?money(F[k]):F[k])}" ${o.money?'data-money="1"':''}></label>`;
+
+function render(){
+  $('steps').innerHTML=STEPS.map((s,i)=>`<div class="${i<=step?'on':''}"><i></i>${s}</div>`).join('');
+  const t=tierOf(F.hood);let h='';
+  if(sent){h=`<div class="done">اتبعت للمراجعة. ده ماكيت، فمفيش حاجة اتبعتت فعلًا.</div>`}
+  else if(step===0)h=`<div class="sec">
+      <div class="fixed"><span>المدينة</span><b>سوهاج الجديدة</b></div>
+      <label class="field">المجاورة *<select data-f="hood"><option value="">اختار المجاورة</option>${HOODS.map(x=>`<option ${F.hood===x?'selected':''} value="${esc(x)}">${hoodLabel(x)}</option>`).join('')}</select></label>
+      <div class="fixed"><span>القطعة</span>${t?`<span class="tier ${t}">${t==='mm'?'مميز':'متوسط'}</span>`:'<span class="note">بتتحدد لوحدها من المجاورة</span>'}</div>
+      ${inp('plot_no','رقم القطعة (مش هيظهر للزوار)',{mode:'numeric'})}
+    </div>`;
+  else if(step===1)h=`<div class="sec">
+      ${inp('area','المساحة (م²) *',{mode:'decimal',ph:'مثلًا 276.5'})}
+      <div class="sec"><h2>التميز النوعي للقطعة</h2>
+        <div class="field">الواجهة${chips('pos')}</div>
+        ${inp('front_m','عرض الواجهة (م)',{mode:'decimal',ph:'مثلًا 12.5'})}
+        <div class="field">الإطلالة <span class="note">اختار كل اللي ينطبق</span>${chips('view',1)}</div>
+      </div>
+      <div class="sec"><h2>التميز الجغرافي <small>خدمات قريبة من القطعة</small></h2>${chips('services',1)}</div>
+    </div>`;
+  else if(step===2){
+    let s='';
+    if(F.legal==='غير مستلمة')s=`<div class="sub">${inp('delivery_date','موعد الاستلام',{type:'date'})}</div>`;
+    if(F.legal==='مستلمة'){
+      s=`<div class="sub"><div class="field">المرحلة البنائية${chips('stage')}</div>`;
+      if(F.stage==='أرض فضاء'||F.stage==='ذات رخصة')s+=inp('grace_until','آخر موعد لمهلة البناء',{type:'date'});
+      if(F.stage==='قيد البناء')s+=`<div class="field">وصل لحد${chips('reached')}</div>`;
+      if(F.stage==='مبنى'||F.stage==='مبنى متشطب')s+=`<label class="field">عدد الأدوار<select data-f="floors"><option value="">اختار</option>${OPT.floors.map(x=>`<option ${F.floors===x?'selected':''}>${x}</option>`).join('')}</select></label>`;
+      if(['قيد البناء','مبنى','مبنى متشطب'].includes(F.stage))s+=`<label class="check"><input type="checkbox" data-f="basement" ${F.basement?'checked':''}>فيه بدروم</label>`;
+      s+='</div>';
+    }
+    h=`<div class="sec"><div class="field">الحالة *${chips('legal')}</div>${s}</div>
+      <div class="sec"><div class="field">تسلسل الملكية${chips('ownership')}</div>
+      ${F.ownership==='حالة تفصيلية'?`<label class="field">اكتب تفاصيل الحالة *<textarea data-f="ownership_note" rows="3">${esc(F.ownership_note)}</textarea></label>`:''}</div>`;
+  }
+  else if(step===3){
+    const r=rest();
+    h=`<div class="sec">
+      ${inp('price','السعر الكلي (جنيه) *',{mode:'numeric',money:1})}
+      <div class="two">${inp('paid','المدفوع',{mode:'numeric',money:1})}${inp('over','الأوفر',{mode:'numeric',money:1})}</div>
+      <div class="calc" id="cDue"><span>المطلوب دفعه<small>المدفوع + الأوفر</small></span><b class="num">${full(due())}</b></div>
+      <div class="calc ${r<0?'neg':''}" id="cRest"><span>المتبقي<small>السعر الكلي − المطلوب دفعه</small></span><b class="num">${full(r)}</b></div>
+      <label class="check"><input type="checkbox" data-f="has_inst" ${F.has_inst?'checked':''}>فيه أقساط</label>
+      ${F.has_inst?`<div class="sub">
+        <div class="two">${inp('inst_value','قيمة القسط',{mode:'numeric',money:1})}${inp('inst_count','عدد الأقساط',{mode:'numeric'})}</div>
+        <div class="calc" id="cInst"><span>إجمالي الأقساط<small>القسط × العدد</small></span><b class="num">${full(instTotal())}</b></div>
+        ${inp('inst_left','عدد الأقساط المتبقية',{mode:'numeric'})}
+        <div class="calc" id="cLeft"><span>إجمالي الأقساط المتبقية<small>القسط × المتبقي</small></span><b class="num">${full(instLeftTotal())}</b></div>
+        <div class="two">${inp('inst_first','موعد أول قسط',{type:'date'})}${inp('inst_last','موعد آخر قسط',{type:'date'})}</div>
+      </div>`:''}
+      ${inp('transfer_fee','قيمة التنازل (اختياري)',{mode:'numeric',money:1})}
+      <label class="field">أخرى<textarea data-f="pay_other" rows="2" placeholder="أي بند دفع تاني">${esc(F.pay_other)}</textarea></label>
+    </div>`;
+  }
+  else if(step===4)h=`<div class="you"><b>بياناتك</b><span>مش هتظهر في الإعلان. فريقنا بيستخدمها يكلمك بس.</span>
+      ${inp('name','الاسم *')}${inp('phone','رقم الموبايل *',{mode:'tel',ph:'01xxxxxxxxx'})}</div>`;
+  else h=review();
+  $('body').innerHTML=h;
+  $('back').hidden=step===0||sent;
+  $('next').textContent=sent?'من الأول':step===5?'تأكيد وابعت':step===4?'راجع البيانات':'التالي';
+  bind();
+}
+
+function review(){
+  const t=tierOf(F.hood);
+  const sections=[
+    ['المكان',0,[['المدينة','سوهاج الجديدة'],['المجاورة',F.hood&&hoodLabel(F.hood)],['القطعة',t&&(t==='mm'?'مميز':'متوسط')],['رقم القطعة',F.plot_no]]],
+    ['القطعة',1,[['المساحة',F.area&&F.area+' م²'],['الواجهة',F.pos],['عرض الواجهة',F.front_m&&F.front_m+' م'],['الإطلالة',F.view.join('، ')],['خدمات قريبة',F.services.join('، ')]]],
+    ['الحالة',2,[['الحالة',F.legal],['موعد الاستلام',F.legal==='غير مستلمة'&&date(F.delivery_date)],['المرحلة البنائية',F.legal==='مستلمة'&&F.stage],['آخر موعد لمهلة البناء',F.legal==='مستلمة'&&['أرض فضاء','ذات رخصة'].includes(F.stage)&&date(F.grace_until)],['وصل لحد',F.stage==='قيد البناء'&&F.reached],['عدد الأدوار',['مبنى','مبنى متشطب'].includes(F.stage)&&F.floors],['بدروم',['قيد البناء','مبنى','مبنى متشطب'].includes(F.stage)&&(F.basement?'أيوه':'لأ')],['تسلسل الملكية',F.ownership],['تفاصيل الحالة',F.ownership==='حالة تفصيلية'&&F.ownership_note]]],
+    ['السعر',3,[['السعر الكلي',F.price&&full(F.price)],['المدفوع',F.paid&&full(F.paid)],['الأوفر',F.over&&full(F.over)],['المطلوب دفعه',full(due())],['المتبقي',full(rest())],
+      ...(F.has_inst?[['قيمة القسط',F.inst_value&&full(F.inst_value)],['عدد الأقساط',F.inst_count],['إجمالي الأقساط',full(instTotal())],['الأقساط المتبقية',F.inst_left],['إجمالي المتبقي',full(instLeftTotal())],['أول قسط',date(F.inst_first)],['آخر قسط',date(F.inst_last)]]:[]),
+      ['قيمة التنازل',F.transfer_fee&&full(F.transfer_fee)],['أخرى',F.pay_other]]],
+    ['بياناتك',4,[['الاسم',F.name],['الموبايل',F.phone]]],
+  ];
+  return `<p class="note">راجع بيانات أرضك قبل ما تبعت. لو فيه حاجة غلط دوس «تعديل» جنبها.</p>`+sections.map(([t,i,rows])=>{
+    const list=rows.filter(r=>r[1]);
+    return `<section class="rv"><div class="rv-h"><b>${t}</b><button type="button" data-go="${i}">تعديل</button></div>${list.map(([k,v])=>`<div class="r"><dt>${k}</dt><dd class="num">${esc(v)}</dd></div>`).join('')||'<p class="note">ما اخترتش حاجة هنا</p>'}</section>`}).join('');
+}
+
+function refreshCalcs(){
+  const set=(id,v)=>{const e=$(id);if(e)e.querySelector('b').textContent=full(v)};
+  set('cDue',due());set('cRest',rest());set('cInst',instTotal());set('cLeft',instLeftTotal());
+  const r=$('cRest');if(r)r.classList.toggle('neg',rest()<0);
+}
+function bind(){
+  document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k,v=b.dataset.v;
+    if(b.dataset.m==='1')F[k]=F[k].includes(v)?F[k].filter(x=>x!==v):[...F[k],v];else F[k]=F[k]===v?'':v;render()});
+  document.querySelectorAll('[data-f]').forEach(el=>{const k=el.dataset.f;
+    el.oninput=el.onchange=()=>{
+      if(el.type==='checkbox'){F[k]=el.checked;render();return}
+      if(el.dataset.money){F[k]=parseMoney(el.value);el.value=money(F[k]);refreshCalcs();return}
+      F[k]=el.value;if(k==='hood')render();else refreshCalcs();
+    }});
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{step=+b.dataset.go;render();window.scrollTo({top:0})});
+}
+function check(){
+  if(step===0&&!F.hood)return 'اختار المجاورة';
+  if(step===1&&!(+F.area>=50&&+F.area<=5000))return 'اكتب المساحة (من 50 لـ 5000 متر)';
+  if(step===2&&!F.legal)return 'اختار الحالة';
+  if(step===2&&F.ownership==='حالة تفصيلية'&&!F.ownership_note.trim())return 'اكتب تفاصيل الحالة';
+  if(step===3&&!F.price)return 'اكتب السعر الكلي';
+  if(step===4&&F.name.trim().length<2)return 'اكتب اسمك';
+  if(step===4&&!/^01[0125][0-9]{8}$/.test(F.phone))return 'رقم الموبايل لازم يكون 11 رقم ويبدأ بـ 01';
+  return '';
+}
+$('form').onsubmit=e=>{e.preventDefault();
+  if(sent){sent=false;step=0;render();return}
+  const err=check();$('err').hidden=!err;$('err').textContent=err;if(err)return;
+  if(step<5)step++;else sent=true;render();window.scrollTo({top:0})};
+$('back').onclick=()=>{$('err').hidden=true;step=step===5?0:step-1;render()};
+
+// Sample filled-in state so the screen shows real content
+Object.assign(F,{hood:'22',plot_no:'33',area:'276',pos:'ناصية',front_m:'12.5',view:['مسجد','شارع رئيسي'],services:['مدرسة','سوق','موقف مواصلات'],legal:'مستلمة',stage:'مبنى',floors:'أرضي + 2',basement:true,ownership:'مالك أصيل',price:1050000,paid:150000,over:200000,has_inst:true,inst_value:25000,inst_count:'12',inst_left:'8',inst_first:'2026-01-01',inst_last:'2026-12-01',name:'محمد أحمد',phone:'01001234567'});
+render();
+})();
+</script>
